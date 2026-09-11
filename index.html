@@ -1,0 +1,2564 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1B1F1D">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wohnmobil">
+<title>Wohnmobil-Reiseplaner</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{
+  --bg:#1B1F1D;--bg2:#242922;--bg3:#2D332B;
+  --border:#3A4136;--text:#EDE8DE;--muted:#7A8A72;
+  --accent:#E8A33D;--accent-soft:rgba(232,163,61,.13);
+  --green:#6FAF8E;--green-soft:rgba(111,175,142,.13);
+  --red:#C2603D;--red-soft:rgba(194,96,61,.13);
+  --blue:#4A7AA3;--blue-soft:rgba(74,122,163,.13);
+  --r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;}
+input,textarea,select{font-family:inherit;}
+
+/* ── Layout ── */
+#root{display:flex;flex-direction:column;height:100%;max-width:480px;margin:0 auto;position:relative;}
+.screen{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.screen.active{display:flex;}
+
+/* ── Topbar ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:env(safe-area-inset-top,12px) 16px 10px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.topbar-title{font-size:17px;font-weight:700;color:var(--text);}
+.topbar-sub{font-size:11px;color:var(--muted);}
+.icon-btn{width:36px;height:36px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:18px;}
+
+/* ── Bottom nav ── */
+.bottomnav{display:flex;background:var(--bg2);border-top:1px solid var(--border);padding:6px 0 env(safe-area-inset-bottom,6px);flex-shrink:0;}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;}
+.nav-btn .ni{font-size:22px;line-height:1;}
+.nav-btn .nl{font-size:9px;color:var(--muted);letter-spacing:.02em;}
+.nav-btn.active .ni{filter:none;}
+.nav-btn.active .nl{color:var(--accent);}
+.nav-btn:not(.active) .ni{opacity:.4;}
+
+/* ── Scrollable content ── */
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px 16px;}
+.scroll::-webkit-scrollbar{display:none;}
+
+/* ── Cards ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;}
+.card-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+
+/* ── Buttons ── */
+.btn{display:flex;align-items:center;justify-content:center;border-radius:10px;padding:14px;font-size:15px;font-weight:600;min-height:50px;width:100%;}
+.btn-primary{background:var(--accent);color:#1B1F1D;}
+.btn-secondary{background:var(--bg3);color:var(--text);border:1px solid var(--border);}
+.btn-ghost{background:transparent;border:1.5px dashed var(--border);color:var(--muted);border-radius:10px;padding:12px;width:100%;font-size:13px;}
+.btn-small{padding:7px 12px;font-size:12px;border-radius:8px;min-height:auto;width:auto;}
+.btn:disabled{opacity:.5;}
+
+/* ── Form ── */
+.field{margin-bottom:12px;}
+.field label{font-size:11px;color:var(--muted);display:block;margin-bottom:5px;}
+.field input,.field select,.field textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;}
+.field input::placeholder{color:var(--border);}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--accent);}
+.field.error input{border-color:var(--red);}
+.err-msg{font-size:12px;color:var(--red);margin-top:5px;}
+
+/* ── Badges ── */
+.badge{font-size:10px;padding:3px 8px;border-radius:20px;font-weight:600;}
+.badge-green{background:var(--green-soft);color:var(--green);}
+.badge-amber{background:var(--accent-soft);color:var(--accent);}
+.badge-muted{background:var(--bg3);color:var(--muted);}
+.badge-red{background:var(--red-soft);color:var(--red);}
+.badge-blue{background:var(--blue-soft);color:var(--blue);}
+
+/* ── Stats ── */
+.stats-row{display:flex;gap:8px;margin-bottom:12px;}
+.stat-pill{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;text-align:center;}
+.stat-pill .sn{font-size:15px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;}
+.stat-pill .sl{font-size:10px;color:var(--muted);margin-top:1px;}
+
+/* ── Road / Etappen ── */
+/* Road: padding-left macht Platz für den Dot */
+.road{position:relative;}
+.etappe-wrap{position:relative;padding-left:52px;margin-bottom:16px;}
+.e-dot{position:absolute;left:0;top:6px;width:36px;height:36px;border-radius:50%;background:var(--accent-soft);border:2.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--accent);font-weight:700;}
+.e-line{position:absolute;left:17px;top:42px;bottom:-16px;border-left:2px dashed var(--border);}
+.etappe-wrap:last-child .e-line{display:none;}
+/* leg-strip: volle Breite, Buttons groß */
+.leg-strip{display:flex;flex-direction:column;gap:10px;padding:8px 0 10px;}
+.leg-strip .leg-info{font-size:13px;color:var(--muted);line-height:1.6;}
+.leg-strip .leg-btns{display:flex;gap:8px;}
+.leg-strip button{font-size:14px;color:var(--accent);padding:12px 16px;border:1.5px solid var(--accent);border-radius:10px;background:var(--accent-soft);min-height:48px;flex:1;font-weight:500;}
+.amenity-row{display:flex;gap:6px;margin:8px 0 4px;}
+.am-btn{width:32px;height:32px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);font-size:15px;display:flex;align-items:center;justify-content:center;}
+.am-btn.on{background:var(--green-soft);border-color:var(--green);}
+
+/* ── Map ── */
+#map{flex:1;z-index:0;}
+.map-overlay{position:absolute;bottom:0;left:0;right:0;background:rgba(26,28,26,.94);border-top:1px solid var(--border);padding:12px 16px;z-index:999;}
+.map-screen{position:relative;flex:1;display:flex;flex-direction:column;}
+.gps-btn{position:absolute;top:12px;right:12px;z-index:999;width:42px;height:42px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4);}
+.leaflet-container{background:#1a2218;}
+
+/* ── OBD2 ── */
+.obd-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.obd-card{background:var(--bg3);border-radius:10px;padding:12px;text-align:center;}
+.obd-val{font-size:22px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;}
+.obd-unit{font-size:11px;color:var(--muted);}
+.obd-label{font-size:10px;color:var(--muted);margin-top:4px;}
+.obd-connecting{display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px 0;}
+.pulse{width:48px;height:48px;border-radius:50%;background:var(--blue-soft);border:2px solid var(--blue);font-size:22px;display:flex;align-items:center;justify-content:center;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+.tank-bar-wrap{background:var(--bg3);border-radius:6px;height:8px;overflow:hidden;margin:6px 0 2px;}
+.tank-bar{height:100%;border-radius:6px;background:var(--green);transition:width .6s;}
+.tank-bar.low{background:var(--red);}
+.tank-bar.mid{background:var(--accent);}
+
+/* ── Budget ── */
+.bud-total-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:12px;}
+.bud-big{font-size:32px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;}
+.bud-sub{font-size:13px;color:var(--muted);margin-top:2px;}
+.progress-track{background:var(--bg3);border-radius:6px;height:8px;margin:12px 0 6px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:6px;background:var(--accent);transition:width .5s;}
+.progress-fill.over{background:var(--red);}
+.progress-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);}
+.cat-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.cat-row:last-child{border-bottom:none;}
+.cat-icon{width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.cat-info{flex:1;min-width:0;}
+.cat-name{font-size:13px;color:var(--text);}
+.cat-mini-bar{background:var(--bg3);border-radius:3px;height:3px;margin-top:4px;overflow:hidden;}
+.cat-mini-fill{height:100%;border-radius:3px;background:var(--accent);}
+.cat-vals{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;}
+.cat-ist{color:var(--text);font-weight:600;}
+.cat-geplant{color:var(--muted);}
+
+/* ── Onboarding ── */
+.ob-screen{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.ob-screen.active{display:flex;}
+.ob-scroll{flex:1;overflow-y:auto;padding:24px 24px 16px;-webkit-overflow-scrolling:touch;}
+.ob-scroll::-webkit-scrollbar{display:none;}
+.ob-footer{padding:16px 24px env(safe-area-inset-bottom,16px);border-top:1px solid var(--border);}
+.ob-hero{text-align:center;margin-bottom:32px;}
+.ob-emoji{font-size:64px;display:block;margin-bottom:16px;}
+.ob-title{font-size:28px;font-weight:700;color:var(--text);line-height:1.2;margin-bottom:10px;}
+.ob-sub{font-size:15px;color:var(--muted);line-height:1.6;}
+.feature-list{display:flex;flex-direction:column;gap:10px;margin-bottom:28px;}
+.feature-item{display:flex;align-items:center;gap:14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+.feature-item .fi{font-size:22px;width:32px;text-align:center;}
+.feature-item .ft{font-size:14px;color:var(--text);}
+.step-row{display:flex;gap:14px;margin-bottom:20px;}
+.step-num{width:32px;height:32px;border-radius:50%;background:var(--accent-soft);border:2px solid var(--accent);color:var(--accent);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;}
+.step-body{flex:1;}
+.step-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.step-desc{font-size:13px;color:var(--muted);line-height:1.6;}
+.step-link{display:inline-block;margin-top:8px;font-size:12px;color:var(--accent);background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;}
+.info-box{display:flex;gap:10px;background:var(--green-soft);border:1px solid rgba(111,175,142,.3);border-radius:10px;padding:12px;margin-bottom:12px;}
+.info-box .ii{font-size:18px;}
+.info-box .it{font-size:12px;color:var(--green);line-height:1.6;}
+.info-box.amber{background:var(--accent-soft);border-color:rgba(232,163,61,.3);}
+.info-box.amber .it{color:var(--accent);}
+.key-input-wrap{position:relative;}
+.key-input-wrap input{padding-right:44px;font-family:monospace;font-size:13px;letter-spacing:.02em;}
+.key-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--muted);}
+.validate-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--muted);}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.back-link{display:inline-flex;align-items:center;gap:4px;color:var(--accent);font-size:14px;margin-bottom:16px;}
+
+/* ── Misc ── */
+.row{display:flex;gap:8px;}
+.row .field{flex:1;}
+.divider{height:1px;background:var(--border);margin:10px 0;}
+.empty{text-align:center;padding:32px 16px;color:var(--muted);}
+.empty .ei{font-size:40px;margin-bottom:10px;}
+.empty .et{font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px;}
+/* Accordion */
+.accordion-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--bg2);border:2px solid var(--border);border-radius:12px;padding:18px 20px;margin:8px 0;cursor:pointer;font-size:15px;font-weight:600;color:var(--text);min-height:64px;-webkit-tap-highlight-color:rgba(232,163,61,.15);}
+.accordion-toggle .ac-label{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.accordion-toggle .ac-count{font-size:13px;color:var(--muted);background:var(--bg3);border-radius:12px;padding:4px 10px;}
+.accordion-toggle .ac-arrow{font-size:26px;color:var(--muted);transition:transform .25s;flex-shrink:0;margin-left:10px;line-height:1;}
+.accordion-toggle.open{border-color:var(--accent);}
+.accordion-toggle.open .ac-arrow{transform:rotate(180deg);color:var(--accent);}
+.accordion-body{display:none;margin-bottom:4px;}
+.accordion-body.open{display:block;}
+
+/* Stellplatz-Popup auf Karte */
+.sp-popup{font-family:inherit;min-width:160px;}
+.sp-popup .sp-name{font-weight:700;font-size:13px;margin-bottom:4px;}
+.sp-popup .sp-am{font-size:11px;color:#7a8a72;margin-bottom:6px;}
+.sp-popup a{font-size:11px;color:#E8A33D;text-decoration:none;}
+
+.nearby-item{display:flex;gap:10px;align-items:flex-start;background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px;}
+.nearby-item .ni-main{flex:1;min-width:0;}
+.nearby-name{font-size:13px;font-weight:600;color:var(--text);}
+.nearby-dist{font-size:11px;color:var(--green);}
+.nearby-hint{font-size:11px;color:var(--muted);margin-top:2px;}
+.nearby-link{font-size:10px;color:var(--accent);margin-top:3px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.nearby-adopt{font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:7px;color:var(--text);background:var(--bg2);}
+.warn-box{background:var(--red-soft);border:1px solid rgba(194,96,61,.3);border-radius:10px;padding:12px;margin-bottom:8px;}
+.warn-item{font-size:12px;color:var(--red);padding:3px 0;}
+.ok-box{background:var(--green-soft);border:1px solid rgba(111,175,142,.3);border-radius:10px;padding:12px;}
+.ok-item{font-size:12px;color:var(--green);padding:2px 0;}
+.loading-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:8px 0;}
+.settings-section{font-size:11px;color:var(--muted);letter-spacing:.08em;margin:20px 0 8px;}
+.settings-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);}
+.settings-row:last-child{border-bottom:none;}
+.settings-row .sr-label{font-size:14px;color:var(--text);}
+.settings-row .sr-val{font-size:12px;color:var(--muted);font-family:monospace;}
+.settings-row .sr-action{font-size:13px;color:var(--accent);}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2000;align-items:flex-end;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--bg2);border-radius:20px 20px 0 0;padding:20px 20px env(safe-area-inset-bottom,20px);width:100%;max-height:85vh;overflow-y:auto;}
+.modal-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:16px;}
+.confirm-btns{display:flex;gap:8px;margin-top:16px;}
+.confirm-btns .btn{flex:1;}
+</style>
+</head>
+<body>
+<div id="root">
+
+<!-- ══════════════ ONBOARDING ══════════════ -->
+<div id="ob-welcome" class="ob-screen active">
+  <div class="ob-scroll">
+    <div class="ob-hero">
+      <span class="ob-emoji">🚐</span>
+      <div class="ob-title">Wohnmobil<br>Reiseplaner</div>
+      <div class="ob-sub">Etappen · Stellplätze · Budget<br>GPS · OBD2 · Kartensuche</div>
+    </div>
+    <div style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:16px;">Wie möchtest du die Stellplatz-Suche nutzen?</div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
+      <button onclick="startFreeMode()" style="background:var(--bg2);border:2px solid var(--green);border-radius:14px;padding:18px 16px;text-align:left;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-size:24px;">🆓</span>
+          <div>
+            <div style="font-size:15px;font-weight:700;color:var(--green);">Kostenlos starten</div>
+            <div style="font-size:11px;color:var(--muted);">Kein Account · Kein API-Key</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;padding-left:34px;">
+          Stellplätze direkt aus OpenStreetMap laden.<br>
+          GPS, Karte, OBD2 – alles inklusive.
+        </div>
+      </button>
+      <button onclick="showOb('ob-keyinput')" style="background:var(--bg2);border:2px solid var(--accent);border-radius:14px;padding:18px 16px;text-align:left;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-size:24px;">🤖</span>
+          <div>
+            <div style="font-size:15px;font-weight:700;color:var(--accent);">Mit KI-Suche</div>
+            <div style="font-size:11px;color:var(--muted);">Eigener API-Key erforderlich</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;padding-left:34px;">
+          KI sucht Stellplätze per Websuche &amp; prüft<br>
+          Streckeneinschränkungen für dein Fahrzeug.<br>
+          <span style="color:var(--accent);">Groq, Claude, OpenRouter oder Gemini</span>
+        </div>
+      </button>
+    </div>
+    <div class="feature-list">
+      <div class="feature-item"><span class="fi">📌</span><span class="ft">Route &amp; Etappen mit Karte</span></div>
+      <div class="feature-item"><span class="fi">🛰️</span><span class="ft">GPS – aktueller Standort auf der Karte</span></div>
+      <div class="feature-item"><span class="fi">🔵</span><span class="ft">OBD2 Bluetooth – Tank &amp; Verbrauch live</span></div>
+      <div class="feature-item"><span class="fi">💶</span><span class="ft">Budget &amp; Kosten je Etappe</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="ob-guide" class="ob-screen">
+  <div class="ob-scroll">
+    <button class="back-link" onclick="showOb('ob-welcome')">← Zurück</button>
+    <div class="ob-title" style="font-size:22px;margin-bottom:6px;">API-Key einrichten</div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:24px;">In 4 Schritten – dauert ca. 3 Minuten</div>
+    <div class="step-row">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Google AI Studio öffnen</div>
+        <div class="step-desc">Kostenlos – du brauchst nur ein Google-Konto, das du wahrscheinlich schon hast.</div>
+        <a class="step-link" href="https://aistudio.google.com" target="_blank">aistudio.google.com öffnen ↗</a>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Mit Google einloggen</div>
+        <div class="step-desc">Einfach dein bestehendes Google-Konto verwenden – keine neue Registrierung nötig.</div>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">API-Key erstellen</div>
+        <div class="step-desc">Oben links auf „Get API key" tippen → „Create API key" → Key kopieren.</div>
+        <a class="step-link" href="https://aistudio.google.com/app/apikey" target="_blank">Direkt zum API-Key ↗</a>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">Key hier einfügen</div>
+        <div class="step-desc">Unten auf „Weiter" tippen und den Key einfügen (beginnt mit AIza).</div>
+      </div>
+    </div>
+    <div class="info-box">
+      <span class="ii">🔒</span>
+      <span class="it">Dein Key wird nur lokal im Browser gespeichert – nie auf unseren Servern.</span>
+    </div>
+    <div class="info-box amber">
+      <span class="ii">🎁</span>
+      <span class="it">Google Gemini ist dauerhaft kostenlos: 1.000 Anfragen pro Tag, keine Kreditkarte nötig.</span>
+    </div>
+  </div>
+  <div class="ob-footer">
+    <button class="btn btn-primary" onclick="showOb('ob-keyinput')">Ich habe meinen Key – weiter</button>
+  </div>
+</div>
+
+<div id="ob-keyinput" class="ob-screen">
+  <div class="ob-scroll">
+    <button class="back-link" onclick="showOb('ob-welcome')">← Zurück</button>
+    <div class="ob-title" style="font-size:22px;margin-bottom:6px;">KI-API-Key eingeben</div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:16px;">Unterstützte Anbieter – alle mit kostenlosem Kontingent:</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
+      <div style="background:var(--bg3);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div><div style="font-size:13px;font-weight:600;color:var(--green);">Groq 🆓</div><div style="font-size:11px;color:var(--muted);">console.groq.com · Key: gsk_...</div></div>
+        <a href="https://console.groq.com/keys" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none;">Key holen ↗</a>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div><div style="font-size:13px;font-weight:600;color:var(--accent);">OpenRouter 🆓</div><div style="font-size:11px;color:var(--muted);">openrouter.ai · Key: sk-or-...</div></div>
+        <a href="https://openrouter.ai/keys" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none;">Key holen ↗</a>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div><div style="font-size:13px;font-weight:600;color:var(--text);">Claude</div><div style="font-size:11px;color:var(--muted);">console.anthropic.com · Key: sk-ant-...</div></div>
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none;">Key holen ↗</a>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div><div style="font-size:13px;font-weight:600;color:var(--blue);">Gemini</div><div style="font-size:11px;color:var(--muted);">aistudio.google.com · Key: AIza...</div></div>
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none;">Key holen ↗</a>
+      </div>
+    </div>
+    <div class="field" id="keyField">
+      <label>API-Key einfügen</label>
+      <div class="key-input-wrap">
+        <input type="password" id="keyInput" placeholder="gsk_ / sk-or- / sk-ant- / AIza..." autocomplete="off" autocorrect="off" spellcheck="false" oninput="clearKeyError();detectProvider(this.value)">
+        <button class="key-eye" onclick="toggleKeyVis()" id="keyEye">👁️</button>
+      </div>
+      <div id="providerDetected" style="font-size:11px;margin-top:5px;color:var(--green);display:none;"></div>
+      <div class="err-msg" id="keyErr" style="display:none;"></div>
+    </div>
+    <div id="keyValidating" style="display:none;" class="validate-row">
+      <div class="spinner"></div><span>Key wird geprüft…</span>
+    </div>
+    <div class="info-box">
+      <span class="ii">🔒</span>
+      <span class="it">Wird nur lokal auf deinem Gerät gespeichert – nie auf unseren Servern.</span>
+    </div>
+    <div style="margin-top:8px;">
+      <button class="btn btn-secondary" style="width:100%;font-size:13px;" onclick="startFreeMode()">Doch lieber kostenlos ohne Key starten</button>
+    </div>
+  </div>
+  <div class="ob-footer">
+    <button class="btn btn-primary" id="keySaveBtn" onclick="saveKey()">Key speichern &amp; starten</button>
+  </div>
+</div>
+
+<!-- ══════════════ MAIN APP ══════════════ -->
+<div id="app" class="screen" style="display:none;flex-direction:column;flex:1;">
+
+  <!-- ROUTE TAB -->
+  <div id="tab-route" class="screen active" style="flex-direction:column;">
+    <div class="topbar">
+      <div style="flex:1;min-width:0;">
+        <div class="topbar-sub">Aktive Reise</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="topbar-title" id="tripNameDisplay" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;">Neue Reise</div>
+          <button onclick="openTripManager()" style="font-size:11px;color:var(--accent);background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:3px 7px;white-space:nowrap;">▾ wechseln</button>
+        </div>
+      </div>
+      <button class="icon-btn" onclick="openSettings()">⚙️</button>
+    </div>
+    <div class="scroll">
+      <div class="stats-row" id="routeStats"></div>
+      <div id="etappenList"></div>
+      <button class="btn-ghost" onclick="addEtappe()">+ Etappe hinzufügen</button>
+    </div>
+  </div>
+
+  <!-- KARTE TAB -->
+  <div id="tab-karte" class="screen" style="flex-direction:column;">
+    <div class="topbar">
+      <div class="topbar-title">Karte & Route</div>
+      <button class="icon-btn" onclick="centerGPS()">📍</button>
+    </div>
+    <div class="map-screen" style="flex:1;display:flex;flex-direction:column;">
+      <div id="map"></div>
+      <button class="gps-btn" onclick="centerGPS()" id="gpsBtn">🎯</button>
+      <div style="position:absolute;top:12px;left:12px;z-index:999;background:rgba(26,28,26,.85);border-radius:8px;padding:5px 10px;font-size:10px;color:#7a8a72;max-width:200px;">🗺️ Kartensymbole = alle OSM-Einträge · ⛺ Marker = deine Suche</div>
+      <div class="map-overlay" id="mapOverlay">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Nächste Etappe</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px;" id="nextLegLabel">– Keine Etappen –</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div id="mapActions" style="display:flex;gap:8px;flex:1;flex-wrap:wrap;align-items:center;"></div>
+        <button id="spClearBtn" onclick="clearSpMarkers();renderMapOverlay();" style="display:none;font-size:12px;color:var(--red);background:var(--red-soft);border:1px solid var(--red);border-radius:8px;padding:6px 12px;min-height:36px;">⛺ Marker entfernen</button>
+        <button id="ladeAlleBtn" onclick="ladeAlleStellplaetze()" style="font-size:12px;color:var(--green);background:var(--green-soft);border:1px solid var(--green);border-radius:8px;padding:6px 12px;min-height:36px;">⛺ Alle laden</button>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUDGET TAB -->
+  <div id="tab-budget" class="screen" style="flex-direction:column;">
+    <div class="topbar"><div class="topbar-title">Budget</div></div>
+    <div class="scroll" id="budgetContent"></div>
+  </div>
+
+  <!-- FAHRZEUG TAB -->
+  <div id="tab-fahrzeug" class="screen" style="flex-direction:column;">
+    <div class="topbar"><div class="topbar-title">Fahrzeug & OBD2</div></div>
+    <div class="scroll" id="fahrzeugContent"></div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottomnav">
+    <button class="nav-btn active" data-tab="route" onclick="switchTab('route')"><span class="ni">🗺️</span><span class="nl">Route</span></button>
+    <button class="nav-btn" data-tab="karte" onclick="switchTab('karte')"><span class="ni">📌</span><span class="nl">Karte</span></button>
+    <button class="nav-btn" data-tab="budget" onclick="switchTab('budget')"><span class="ni">💶</span><span class="nl">Budget</span></button>
+    <button class="nav-btn" data-tab="fahrzeug" onclick="switchTab('fahrzeug')"><span class="ni">🔵</span><span class="nl">Fahrzeug</span></button>
+  </div>
+</div>
+
+</div><!-- #root -->
+
+<!-- Etappe-Modal -->
+<div class="modal-bg" id="etappeModal">
+  <div class="modal">
+    <div class="modal-title" id="etappeModalTitle">Etappe</div>
+    <div id="etappeModalContent"></div>
+  </div>
+</div>
+
+<!-- Bestätigungs-Modal -->
+<div class="modal-bg" id="confirmModal">
+  <div class="modal">
+    <div class="modal-title" id="confirmTitle">Bestätigen</div>
+    <div id="confirmMsg" style="font-size:14px;color:var(--muted);margin-bottom:4px;"></div>
+    <div class="confirm-btns">
+      <button class="btn btn-secondary" onclick="closeConfirm()">Abbrechen</button>
+      <button class="btn btn-primary" id="confirmOk" style="background:var(--red);color:#fff;">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings-Modal -->
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="modal-title" style="margin:0;">Einstellungen</div>
+      <button onclick="closeSettings()" style="font-size:22px;color:var(--muted);">✕</button>
+    </div>
+    <div id="settingsContent"></div>
+  </div>
+</div>
+<script>
+// ═══════════════════════════════════════════
+//  STORAGE & STATE
+// ═══════════════════════════════════════════
+const KEY_APIKEY   = 'womo_apikey';
+const SERVER_URL   = 'http://localhost:3001'; // Lokaler Server (npm start)
+let   serverOnline = false;  // wird beim Start geprüft
+
+async function checkServer(){
+  try{
+    const r = await Promise.race([
+      fetch(SERVER_URL+'/api/status'),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),2000))
+    ]);
+    serverOnline = r.ok;
+  }catch{ serverOnline = false; }
+}
+const KEY_MODE     = 'womo_mode';
+const KEY_TRIPS    = 'womo_trips';      // Array aller Reisen
+const KEY_ACTIVE   = 'womo_active_trip'; // aktive Trip-ID
+const KEY_VEHICLE  = 'womo_vehicle';
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function eur(n){ return (Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+function km(n){ return Math.round(Number(n)||0).toLocaleString('de-DE')+' km'; }
+function nightsBetween(a,b){
+  if(!a||!b) return 0;
+  const d = Math.round((new Date(b)-new Date(a))/86400000);
+  return d>0?d:0;
+}
+function fmtDate(d){
+  if(!d) return '';
+  const [y,m,day]=d.split('-');
+  return `${day}.${m}.${y}`;
+}
+
+let apiKey = localStorage.getItem(KEY_APIKEY)||'';
+let appMode = localStorage.getItem(KEY_MODE)||''; // 'free' oder 'ai'
+let aiProvider = ''; // 'groq','openrouter','claude','gemini'
+
+function defaultBudget(){
+  return { categories:[
+    {id:uid(),icon:'⛽',name:'Diesel / Sprit',geplant:0,ist:0},
+    {id:uid(),icon:'🛒',name:'Verpflegung',geplant:0,ist:0},
+    {id:uid(),icon:'🎟️',name:'Aktivitäten',geplant:0,ist:0},
+    {id:uid(),icon:'🚧',name:'Maut & Fähren',geplant:0,ist:0},
+    {id:uid(),icon:'📦',name:'Sonstiges',geplant:0,ist:0},
+  ]};
+}
+
+function newTripObj(name){
+  return {
+    id:uid(), name:name||'Neue Reise',
+    startOrt:'', startDatum:'',  // ← Startpunkt der Reise
+    etappen:[], budget:defaultBudget()
+  };
+}
+
+// ── Alle Variablen zuerst deklarieren ──
+let trips       = [];
+let activeId    = '';
+let trip        = null;
+let vehicle     = null;
+let nearbyCache = {};
+let nearbyLoading={};
+let legWarnCache={};
+let legWarnLoad ={};
+let obdState    = {connected:false,device:null,char:null,tank:null,speed:null,rpm:null,temp:null,fuel:null};
+let gpsPos      = null;
+let gpsError    = null;
+let gpsRequested= false;
+let leafletMap  = null;
+let gpsMarker   = null;
+let routeLayer  = null;
+let etappeMarkers=[];
+let routeLayers  =[];   // Leaflet-Layer pro Abschnitt
+let routeCache   ={};   // 'id1→id2' → {km, stunden, coords}
+let nearbyOpen   ={};   // etappeId → bool (Accordion offen/zu)
+let spMarkers    =[];   // Stellplatz-Marker auf der Karte
+
+function clearSpMarkers(){
+  spMarkers.forEach(m=>{ try{ m.remove(); }catch{} });
+  spMarkers=[];
+  const btn=document.getElementById('spClearBtn');
+  if(btn) btn.style.display='none';
+  const ladeBtn=document.getElementById('ladeAlleBtn');
+  if(ladeBtn) ladeBtn.textContent='⛺ Alle laden';
+}
+let activeTab   = 'route';
+let obdBuffer   = '';
+let obdQueue    = [];
+let obdBusy     = false;
+let obdInterval = null;
+
+// ── Speicher-Funktionen (nach let-Deklarationen) ──
+function saveTrips(){
+  if(!trip) return;
+  const idx=trips.findIndex(t=>t.id===trip.id);
+  if(idx>=0) trips[idx]=trip;
+  localStorage.setItem(KEY_TRIPS, JSON.stringify(trips));
+  localStorage.setItem(KEY_ACTIVE, trip.id);
+}
+function saveTrip(){ saveTrips(); }
+function saveVehicle(){ localStorage.setItem(KEY_VEHICLE, JSON.stringify(vehicle)); }
+
+// ── Initialisierung ──
+(function initData(){
+  // Alte Einzelreise migrieren
+  const oldTrip = localStorage.getItem('womo_trip');
+  if(oldTrip && !localStorage.getItem(KEY_TRIPS)){
+    const t = JSON.parse(oldTrip);
+    if(!t.startOrt) t.startOrt='';
+    if(!t.startDatum) t.startDatum='';
+    if(!t.startLat) t.startLat=null;
+    if(!t.startLng) t.startLng=null;
+    localStorage.setItem(KEY_TRIPS, JSON.stringify([t]));
+    localStorage.setItem(KEY_ACTIVE, t.id);
+    localStorage.removeItem('womo_trip');
+  }
+
+  // Trips laden
+  const stored = JSON.parse(localStorage.getItem(KEY_TRIPS)||'null');
+  if(stored && stored.length){
+    trips = stored;
+  } else {
+    trips = [newTripObj('Meine erste Tour')];
+    localStorage.setItem(KEY_TRIPS, JSON.stringify(trips));
+  }
+
+  // Aktive Reise setzen
+  activeId = localStorage.getItem(KEY_ACTIVE)||trips[0].id;
+  trip = trips.find(t=>t.id===activeId)||trips[0];
+
+  // Fahrzeug laden
+  vehicle = JSON.parse(localStorage.getItem(KEY_VEHICLE)||'null') || {
+    name:'Mein Wohnmobil', hoehe:0, breite:0, laenge:0, gewicht:0,
+    tankGroesse:0, verbrauch:0, suchRadius:30
+  };
+  if(!vehicle.suchRadius)  vehicle.suchRadius=30;
+  if(!vehicle.routingMode) vehicle.routingMode='osrm';  // 'osrm' oder 'ors'
+  if(!vehicle.orsKey)      vehicle.orsKey='';
+})();
+
+// ═══════════════════════════════════════════
+//  ONBOARDING
+// ═══════════════════════════════════════════
+function showOb(id){
+  document.querySelectorAll('.ob-screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function toggleKeyVis(){
+  const inp = document.getElementById('keyInput');
+  const eye = document.getElementById('keyEye');
+  inp.type = inp.type==='password'?'text':'password';
+  eye.textContent = inp.type==='password'?'👁️':'🙈';
+}
+
+function clearKeyError(){
+  document.getElementById('keyErr').style.display='none';
+  document.getElementById('keyField').classList.remove('error');
+}
+
+async function saveKey(){
+  const k = document.getElementById('keyInput').value.trim();
+  const errEl = document.getElementById('keyErr');
+  const field = document.getElementById('keyField');
+  const btn   = document.getElementById('keySaveBtn');
+  const spin  = document.getElementById('keyValidating');
+
+  if(!k){ errEl.textContent='Bitte gib deinen API-Key ein.'; errEl.style.display='block'; field.classList.add('error'); return; }
+
+  btn.disabled=true; spin.style.display='flex';
+  // Provider vor dem Test ermitteln
+  aiProvider = getProvider(k);
+  const ok = await testApiKey(k);
+  spin.style.display='none';
+  if(!ok){
+    errEl.textContent='Key konnte nicht verifiziert werden. Bitte prüfe ob er korrekt kopiert wurde.';
+    errEl.style.display='block'; field.classList.add('error'); btn.disabled=false; return;
+  }
+  localStorage.setItem(KEY_APIKEY, k);
+  localStorage.setItem(KEY_MODE,'ai');
+  apiKey = k; appMode='ai';
+  btn.disabled=false;
+  launchApp();
+}
+
+async function testApiKey(key){
+  const p = getProvider(key);
+  try{
+    let r;
+    if(p==='groq'){
+      r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+        method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+        body:JSON.stringify({model:'llama3-8b-8192',max_tokens:5,messages:[{role:'user',content:'Hi'}]})
+      });
+    } else if(p==='openrouter'){
+      r=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+        method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+        body:JSON.stringify({model:'meta-llama/llama-3-8b-instruct:free',max_tokens:5,messages:[{role:'user',content:'Hi'}]})
+      });
+    } else if(p==='claude'){
+      r=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:5,messages:[{role:'user',content:'Hi'}]})
+      });
+    } else {
+      r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{parts:[{text:'Hi'}]}]})
+      });
+    }
+    return r.status===200||r.status===529;
+  }catch{return false;}
+}
+
+// ═══════════════════════════════════════════
+//  APP LAUNCH
+// ═══════════════════════════════════════════
+function launchApp(){
+  checkServer().then(()=>{ if(serverOnline) console.log('✅ Lokaler Server verbunden'); });
+  document.querySelectorAll('.ob-screen').forEach(s=>s.style.display='none');
+  const appEl = document.getElementById('app');
+  appEl.style.display='flex';
+  appEl.classList.add('active');
+  initMap();
+  startGPS();
+  renderAll();
+}
+
+// ── Anbieter-Erkennung ──
+function detectProvider(k){
+  const el=document.getElementById('providerDetected');
+  if(!el) return;
+  const t=k.trim();
+  let label='';
+  if(t.startsWith('gsk_'))        label='✅ Groq erkannt';
+  else if(t.startsWith('sk-or-')) label='✅ OpenRouter erkannt';
+  else if(t.startsWith('sk-ant-'))label='✅ Claude erkannt';
+  else if(t.startsWith('AIza'))   label='✅ Gemini erkannt';
+  else if(t.length>10)            label='❓ Unbekanntes Format – wird trotzdem getestet';
+  el.textContent=label;
+  el.style.display=label?'block':'none';
+}
+
+function getProvider(k){
+  if(k.startsWith('gsk_'))        return 'groq';
+  if(k.startsWith('sk-or-'))      return 'openrouter';
+  if(k.startsWith('sk-ant-'))     return 'claude';
+  return 'gemini';
+}
+
+function startFreeMode(){
+  localStorage.setItem(KEY_MODE,'free');
+  appMode='free'; apiKey='';
+  launchApp();
+}
+
+function init(){
+  if(appMode==='free'){ launchApp(); }
+  else if(apiKey){ appMode='ai'; aiProvider=getProvider(apiKey); launchApp(); }
+  else{ showOb('ob-welcome'); }
+}
+
+// ═══════════════════════════════════════════
+//  TAB NAVIGATION
+// ═══════════════════════════════════════════
+function switchTab(name){
+  document.querySelectorAll('#app .screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.nav-btn[data-tab="${name}"]`).classList.add('active');
+  activeTab = name;
+  if(name==='karte'){
+    setTimeout(()=>{ leafletMap&&leafletMap.invalidateSize(); },50);
+    renderMapOverlay();
+    // Routen berechnen falls noch nicht geschehen
+    berechneAlleRouten();
+  }
+  if(name==='budget') renderBudget();
+  if(name==='fahrzeug') renderFahrzeug();
+}
+
+// ═══════════════════════════════════════════
+//  ROUTE / ETAPPEN
+// ═══════════════════════════════════════════
+function renderAll(){
+  renderStats();
+  renderEtappen();
+  renderBudget();
+  renderFahrzeug();
+  renderMapMarkers();
+  renderMapOverlay();
+}
+
+function renderStats(){
+  const el = document.getElementById('routeStats');
+  let nights=0,totalKm=0,unterkunft=0,kosten=0;
+  trip.etappen.forEach(e=>{
+    const n=nightsBetween(e.datumVon,e.datumBis);
+    nights+=n;
+    // Gecachte Route bevorzugen (aktueller), sonst gespeicherter Wert
+    const idx = trip.etappen.indexOf(e);
+    const prevId = idx===0 ? 'start' : trip.etappen[idx-1]?.id;
+    const cacheKey = prevId ? `${prevId}→${e.id}` : null;
+    const km = (cacheKey && routeCache[cacheKey]) ? routeCache[cacheKey].km : (Number(e.entfernungKm)||0);
+    totalKm += km;
+    unterkunft+=n*(Number(e.preisProNacht)||0);
+  });
+  const cats = trip.budget.categories;
+  kosten = unterkunft + cats.reduce((s,c)=>s+(Number(c.ist)||0),0);
+  el.innerHTML=`
+    <div class="stat-pill"><div class="sn">${trip.etappen.length}</div><div class="sl">Etappen</div></div>
+    <div class="stat-pill"><div class="sn">${nights}</div><div class="sl">Nächte</div></div>
+    <div class="stat-pill"><div class="sn">${Math.round(totalKm)}</div><div class="sl">km</div></div>
+    <div class="stat-pill"><div class="sn">${eur(kosten).replace(' €','')}</div><div class="sl">€ Ist</div></div>
+  `;
+  document.getElementById('tripNameDisplay').textContent = trip.name;
+  // Startpunkt-Sub
+  const sub=document.querySelector('#tab-route .topbar .topbar-sub');
+  if(sub) sub.textContent = trip.startOrt?`Start: ${trip.startOrt}`:'Aktive Reise';
+}
+
+function newEtappe(){ return {id:uid(),ort:'',datumVon:'',datumBis:'',entfernungKm:0,fahrzeitStunden:0,stellplatz:'',stellplatzWebsite:'',preisProNacht:0,strom:false,wasser:false,entsorgung:false,wlan:false,status:'idee',notizen:'',lat:null,lng:null}; }
+function addEtappe(){ trip.etappen.push(newEtappe()); saveTrip(); renderAll(); openEtappeModal(trip.etappen[trip.etappen.length-1].id); }
+
+function renderStartpunkt(){
+  const hasCoords = trip.startLat && trip.startLng;
+  return `<div class="card" style="border-color:var(--green);margin-bottom:10px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--green-soft);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:14px;">🏠</div>
+        <div style="font-size:15px;font-weight:700;color:var(--green);">Startpunkt</div>
+      </div>
+      <button onclick="startGPSStandort()" title="Aktuellen GPS-Standort verwenden"
+        style="background:var(--blue-soft);border:1.5px solid var(--blue);color:var(--blue);border-radius:10px;padding:8px 14px;font-size:13px;min-height:40px;display:flex;align-items:center;gap:6px;">
+        🎯 GPS
+      </button>
+    </div>
+    <div style="position:relative;">
+      <div class="field" style="margin:0 0 8px;">
+        <label>Startort <span style="font-size:10px;color:var(--muted);">(manuell oder GPS)</span></label>
+        <input id="startOrtInput"
+          value="${esc(trip.startOrt||'')}"
+          placeholder="z.B. München, Adresse…"
+          autocomplete="off"
+          oninput="trip.startOrt=this.value;saveTrip();ortAutocomplete(this.value,'start-ort-list')"
+          onblur="setTimeout(()=>{const l=document.getElementById('start-ort-list');if(l)l.style.display='none';},200);geocodeStart();">
+        <div id="start-ort-list"
+          style="position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:0 0 10px 10px;z-index:100;max-height:200px;overflow-y:auto;display:none;"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <div class="field" style="margin:0;flex:1;">
+        <label>Abreisedatum</label>
+        <input type="date" id="startDatumInput" value="${trip.startDatum||''}" oninput="trip.startDatum=this.value;saveTrip();">
+      </div>
+      ${hasCoords?`<div style="font-size:11px;color:var(--green);align-self:flex-end;padding-bottom:2px;">📍 ${trip.startLat.toFixed(4)}, ${trip.startLng.toFixed(4)}</div>`:''}
+    </div>
+    ${!trip.startOrt?`<div style="font-size:12px;color:var(--muted);margin-top:8px;">Tippe eine Adresse ein oder nutze GPS für deinen aktuellen Standort.</div>`:''}
+  </div>`;
+}
+
+async function startGPSStandort(){
+  if(!navigator.geolocation){ showGpsInfo('GPS nicht verfügbar'); return; }
+  showGpsInfo('⏳ GPS wird abgefragt…');
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+    trip.startLat = lat;
+    trip.startLng = lon;
+    // Adresse per Reverse Geocoding ermitteln
+    try{
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=de`);
+      const d = await r.json();
+      const a = d.address||{};
+      const ort = a.road
+        ? [a.road+(a.house_number?' '+a.house_number:''), a.city||a.town||a.village||''].filter(Boolean).join(', ')
+        : (a.city||a.town||a.village||d.display_name.split(',')[0]);
+      trip.startOrt = ort;
+    }catch{
+      trip.startOrt = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    }
+    saveTrip();
+    renderStartpunkt_update();
+    clearRouteCache('start');
+    await berechneRouten();
+    if(leafletMap) renderMapMarkers();
+    showGpsInfo(`📍 Startpunkt: ${trip.startOrt}`);
+  }, err=>{
+    showGpsInfo('GPS-Fehler: '+err.message);
+  },{enableHighAccuracy:true, timeout:10000, maximumAge:0});
+}
+
+function renderStartpunkt_update(){
+  // Nur die Startpunkt-Karte neu rendern ohne alles neu zu bauen
+  const el = document.getElementById('etappenList');
+  if(el) renderEtappen();
+  renderStats();
+}
+
+function renderEtappen(){
+  const el = document.getElementById('etappenList');
+  if(!trip.etappen.length){
+    el.innerHTML=`<div class="empty"><div class="ei">🗺️</div><div class="et">Noch keine Etappen</div><div>Füge deine erste Station hinzu</div></div>`;
+    return;
+  }
+  let html = renderStartpunkt();
+  html += '<div class="road">';
+  trip.etappen.forEach((e,i)=>{
+    const nights=nightsBetween(e.datumVon,e.datumBis);
+    const statusCls={idee:'badge-muted',geplant:'badge-amber',gebucht:'badge-green'}[e.status]||'badge-muted';
+    const statusLabel={idee:'Idee',geplant:'Geplant',gebucht:'Gebucht'}[e.status]||'Idee';
+    html+=`<div class="etappe-wrap">
+      <div class="e-line"></div>
+      <div class="e-dot">${i+1}</div>`;
+    // Abschnitt zur vorherigen Station – gilt für ALLE Etappen (auch erste)
+    const prevOrt = i===0 ? trip.startOrt : trip.etappen[i-1]?.ort;
+    const showLeg = i>0 || trip.startOrt; // Leg anzeigen wenn Startpunkt oder Vorgänger vorhanden
+    if(showLeg){
+      // Route aus Cache holen falls berechnet
+      const prevId  = i===0 ? 'start' : trip.etappen[i-1].id;
+      const cacheKey= `${prevId}→${e.id}`;
+      const cached  = routeCache[cacheKey];
+      const kmVal   = cached ? cached.km : (e.entfernungKm||0);
+      const hVal    = cached ? cached.stunden : (e.fahrzeitStunden||0);
+      const routeQuelle = cached?.quelle||'';
+      const routeBadge = cached
+        ? `<span style="color:var(--green);font-size:10px;" title="${esc(routeQuelle)}">🛣️ ${routeQuelle.startsWith('ORS')?'ORS HGV':'OSRM'}${cached.faktor&&cached.faktor>1?' ×'+cached.faktor:''}</span>`
+        : `<span style="font-size:10px;color:var(--muted);">✏️ manuell</span>`;
+      const legInfo = i===0
+        ? `ab ${esc(trip.startOrt)}<br>${kmVal} km · ${hVal} h`
+        : `${kmVal} km · ${hVal} h`;
+      html+=`<div class="leg-strip">
+        <span class="leg-info">↳ ${legInfo} ${routeBadge}</span>
+        <div class="leg-btns">
+          <button onclick="searchNearby('${e.id}')">📍 Stellplätze</button>
+          <button onclick="checkLeg('${e.id}')">⚠️ Check</button>
+        </div>
+      </div>`;
+      // Stellplatz-Ergebnisse
+      if(nearbyLoading[e.id]){
+        html+=`<div class="loading-row"><div class="spinner"></div>${appMode==='free'?'Bereite Links vor…':'Suche Campingplätze…'}</div>`;
+      } else if(nearbyCache[e.id]?.items?.length){
+        const src   = nearbyCache[e.id].source;
+        const items = nearbyCache[e.id].items;
+        const isOpen= nearbyOpen[e.id]!==false; // Standard: offen beim ersten Mal
+        const srcLabel={osm:'📡 OSM',eigene:'🗂️ Eigene+OSM',ai:'🤖 KI-Suche',links:'🔗 Verzeichnisse'}[src]||'📍';
+        const hasCoords = items.some(it=>it.lat&&it.lng);
+        html+=`
+        <button class="accordion-toggle ${isOpen?'open':''}" onclick="toggleNearby('${e.id}')">
+          <span class="ac-label">
+            ${srcLabel}
+            <span class="ac-count">${items.length} Ergebnis${items.length!==1?'se':''}</span>
+            ${hasCoords?`<button onclick="event.stopPropagation();zeigeStellplaetzeAufKarte('${e.id}')" style="font-size:14px;background:var(--accent-soft);border:1.5px solid var(--accent);border-radius:10px;padding:10px 16px;color:var(--accent);min-height:44px;font-weight:500;">🗺️ Karte</button>`:''}
+          </span>
+          <span class="ac-arrow">▾</span>
+        </button>
+        <div class="accordion-body ${isOpen?'open':''}">
+          ${nearbyCache[e.id].hinweis?`<div style="font-size:10px;color:var(--muted);padding:4px 0 6px;">${esc(nearbyCache[e.id].hinweis)}</div>`:''}
+          ${items.map((it,idx)=>{
+            const href=it.quelle||`https://www.google.com/search?q=${encodeURIComponent(it.name+' '+it.ort)}`;
+            return `<div class="nearby-item">
+              <div class="ni-main">
+                <div class="nearby-name">${esc(it.name)} <span class="nearby-dist">${esc(it.entfernung||'')}</span></div>
+                ${it.hinweise?`<div class="nearby-hint">${esc(it.hinweise)}</div>`:''}
+                <a class="nearby-link" href="${esc(href)}" target="_blank">${esc(it.quelle?it.quelle.replace(/^https?:\/\//,'').split('/')[0]:'Google ↗')}</a>
+              </div>
+              <button class="nearby-adopt" onclick="adoptNearby('${e.id}',${idx})">↩ Übernehmen</button>
+            </div>`;
+          }).join('')}
+        </div>`;
+      } else if(nearbyCache[e.id]?.error){
+        const fb=nearbyCache[e.id].fallbackUrl;
+        html+=`<div style="font-size:12px;color:var(--red);padding:4px 0 2px;">${esc(nearbyCache[e.id].error)}</div>`;
+        if(fb) html+=`<a href="${esc(fb)}" target="_blank" style="font-size:12px;color:var(--accent);">🔍 Google-Suche ↗</a>`;
+      }
+      // Routen-Check Ergebnisse
+      if(legWarnLoad[e.id]) html+=`<div class="loading-row"><div class="spinner"></div>Prüfe Strecke…</div>`;
+      else if(legWarnCache[e.id]){
+        const w=legWarnCache[e.id];
+        if(w.error) html+=`<div style="font-size:12px;color:var(--red);padding:4px 0;">${esc(w.error)}</div>`;
+        else if(w.warnungen?.length){
+          html+=`<div class="warn-box">${w.warnungen.map(x=>`<div class="warn-item">⚠️ ${esc(x)}</div>`).join('')}</div>`;
+        } else {
+          html+=`<div class="ok-box"><div class="ok-item">✅ Keine bekannten Einschränkungen gefunden</div>${w.hinweis?`<div style="font-size:11px;color:var(--muted);margin-top:4px;">${esc(w.hinweis)}</div>`:''}</div>`;
+        }
+      }
+    } else {
+      // Keine Vorgänger-Info – trotzdem Stellplatz-Suche anbieten
+      html+=`<div class="leg-strip">
+        <div class="leg-btns">
+          <button onclick="searchNearby('${e.id}')">📍 Stellplätze suchen</button>
+        </div>
+      </div>`;
+      if(nearbyLoading[e.id]) html+=`<div class="loading-row"><div class="spinner"></div>Suche Campingplätze… (bis 10 s)</div>`;
+      else if(nearbyCache[e.id]?.items?.length){
+        nearbyCache[e.id].items.forEach((it,idx)=>{
+          const href=it.quelle||`https://www.google.com/search?q=${encodeURIComponent(it.name+' '+it.ort)}`;
+          html+=`<div class="nearby-item">
+            <div class="ni-main">
+              <div class="nearby-name">${esc(it.name)} <span class="nearby-dist">${esc(it.entfernung||'')}</span></div>
+              ${it.hinweise?`<div class="nearby-hint">${esc(it.hinweise)}</div>`:''}
+              <a class="nearby-link" href="${esc(href)}" target="_blank">${esc(it.quelle||'Google-Suche ↗')}</a>
+            </div>
+            <button class="nearby-adopt" onclick="adoptNearby('${e.id}',${idx})">Übernehmen</button>
+          </div>`;
+        });
+      } else if(nearbyCache[e.id]?.error){
+        html+=`<div style="font-size:12px;color:var(--red);padding:4px 0;">${esc(nearbyCache[e.id].error)}</div>`;
+      }
+    }
+    html+=`<div class="card" onclick="openEtappeModal('${e.id}')" style="cursor:pointer;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+          <div style="font-size:16px;font-weight:700;color:var(--text);">${e.ort||'(kein Ort)'}</div>
+          <span class="badge ${statusCls}">${statusLabel}</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">
+          ${e.datumVon?fmtDate(e.datumVon):'–'}${e.datumBis?' – '+fmtDate(e.datumBis):''}
+          ${nights>0?`<span style="color:var(--green);margin-left:8px;">· ${nights} Nacht${nights>1?'e':''}</span>`:''}
+        </div>
+        ${e.stellplatz?'<div style="font-size:11px;color:var(--muted);margin-top:4px;">📌 '+esc(e.stellplatz)+' · '+eur(e.preisProNacht)+'/Nacht'+(e.stellplatzWebsite?' <a href="'+esc(e.stellplatzWebsite)+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;">🌐</a>':'')+'</div>':''}
+        <div class="amenity-row">
+          <div class="am-btn ${e.strom?'on':''}" title="Strom">⚡</div>
+          <div class="am-btn ${e.wasser?'on':''}" title="Wasser">💧</div>
+          <div class="am-btn ${e.entsorgung?'on':''}" title="Entsorgung">♻️</div>
+          <div class="am-btn ${e.wlan?'on':''}" title="WLAN">📶</div>
+        </div>
+    </div><!-- /card -->
+    </div><!-- /etappe-wrap -->`;
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ═══════════════════════════════════════════
+//  ETAPPE MODAL (Bearbeiten)
+// ═══════════════════════════════════════════
+function openEtappeModal(id){
+  const e = trip.etappen.find(x=>x.id===id);
+  if(!e) return;
+  const idx = trip.etappen.indexOf(e);
+  document.getElementById('etappeModalTitle').textContent = e.ort||'Etappe bearbeiten';
+  document.getElementById('etappeModalContent').innerHTML=`
+    <div class="field" style="position:relative;">
+      <label>Ort / Ziel</label>
+      <input id="em-ort" value="${esc(e.ort)}" placeholder="z.B. Florenz, Bayern…"
+        autocomplete="off"
+        oninput="ortAutocomplete(this.value,'em-ort-list')"
+        onblur="setTimeout(()=>{const l=document.getElementById('em-ort-list');if(l)l.style.display='none';},200)">
+      <div id="em-ort-list" style="position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:0 0 10px 10px;z-index:100;max-height:200px;overflow-y:auto;display:none;"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Von</label><input type="date" id="em-von" value="${e.datumVon}"></div>
+      <div class="field"><label>Bis</label><input type="date" id="em-bis" value="${e.datumBis}"></div>
+    </div>
+    ${idx>0?`<div class="row">
+      <div class="field">
+        <label>km ab Vorort <span style="font-size:10px;color:var(--muted);">(manuell editierbar)</span></label>
+        <input type="number" id="em-km" value="${e.entfernungKm||0}" min="0">
+      </div>
+      <div class="field">
+        <label>Fahrzeit (h)</label>
+        <input type="number" id="em-h" value="${e.fahrzeitStunden||0}" min="0" step="0.25">
+      </div>
+    </div>
+    <button onclick="neuberechnungEtappe('${e.id}')" style="font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:8px 14px;margin-bottom:8px;width:100%;">🛣️ km & Zeit via OSRM neu berechnen</button>
+    <div id="osrm-hint-${e.id}" style="font-size:11px;color:var(--muted);margin-bottom:8px;display:none;"></div>`:''}
+    <div class="field"><label>Stellplatz / Campingplatz</label><input id="em-sp" value="${esc(e.stellplatz)}" placeholder="Name"></div>
+    <div class="field">
+      <label>Website des Stellplatzes</label>
+      <input id="em-website" value="${esc(e.stellplatzWebsite||'')}" placeholder="https://..." oninput="updateWebsiteLink(this.value)">
+      <div id="em-website-link" style="margin-top:6px;${e.stellplatzWebsite?'':'display:none;'}">
+        <a id="em-website-a" href="${esc(e.stellplatzWebsite||'#')}" target="_blank"
+          style="color:var(--accent);font-size:13px;text-decoration:none;display:flex;align-items:center;gap:4px;">
+          🌐 Website öffnen
+        </a>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field"><label>€ / Nacht</label><input type="number" id="em-preis" value="${e.preisProNacht||0}" min="0" step="0.5"></div>
+      <div class="field"><label>Status</label><select id="em-status">
+        <option value="idee" ${e.status==='idee'?'selected':''}>Idee</option>
+        <option value="geplant" ${e.status==='geplant'?'selected':''}>Geplant</option>
+        <option value="gebucht" ${e.status==='gebucht'?'selected':''}>Gebucht</option>
+      </select></div>
+    </div>
+    <div class="field"><label>Ausstattung</label>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="am-btn ${e.strom?'on':''}" onclick="toggleAm('${id}','strom',this)" title="Strom">⚡</button>
+        <button class="am-btn ${e.wasser?'on':''}" onclick="toggleAm('${id}','wasser',this)" title="Wasser">💧</button>
+        <button class="am-btn ${e.entsorgung?'on':''}" onclick="toggleAm('${id}','entsorgung',this)" title="Entsorgung">♻️</button>
+        <button class="am-btn ${e.wlan?'on':''}" onclick="toggleAm('${id}','wlan',this)" title="WLAN">📶</button>
+      </div>
+    </div>
+    <div class="field"><label>Notizen</label><textarea id="em-notizen" rows="3" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);resize:vertical;">${esc(e.notizen)}</textarea></div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveEtappe('${id}')">Speichern</button>
+      <button class="btn btn-secondary" style="flex:1;" onclick="closeEtappeModal()">Abbrechen</button>
+    </div>
+    <div class="divider"></div>
+    <button class="btn" style="color:var(--red);border:1px solid var(--red);border-radius:10px;padding:12px;" onclick="confirmDeleteEtappe('${id}')">Etappe löschen</button>
+  `;
+  document.getElementById('etappeModal').classList.add('open');
+}
+
+function closeEtappeModal(){ document.getElementById('etappeModal').classList.remove('open'); }
+
+// ═══════════════════════════════════════════
+//  ORT-AUTOCOMPLETE (Nominatim)
+// ═══════════════════════════════════════════
+let acTimer = null;
+
+// Autocomplete-Ergebnisse zwischenspeichern (Index-Referenz statt Strings in onclick)
+const acCache = {};
+
+async function ortAutocomplete(val, listId){
+  const list = document.getElementById(listId);
+  if(!list) return;
+  if(!val || val.length < 2){ list.style.display='none'; return; }
+  clearTimeout(acTimer);
+  acTimer = setTimeout(async ()=>{
+    try{
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&limit=6&accept-language=de&addressdetails=1`
+      );
+      const results = await r.json();
+      if(!results.length){ list.style.display='none'; return; }
+      // Ergebnisse im Cache speichern – onclick nutzt nur den Index
+      acCache[listId] = results.map(res=>{
+        const city    = res.address?.city||res.address?.town||res.address?.village||res.address?.municipality||'';
+        const state   = res.address?.state||res.address?.county||'';
+        const country = res.address?.country||'';
+        // Primär: der eigentliche Name des Ortes (z.B. "La Marina"), nicht die übergeordnete Stadt
+        const placeName = res.name || res.display_name.split(',')[0].trim();
+        const short   = [placeName, city!==placeName?city:'', country].filter(Boolean).join(', ');
+        const label   = [res.address?.road, city, state, country].filter(Boolean).join(', ');
+        return { short, label, lat: res.lat, lon: res.lon };
+      });
+      list.innerHTML = acCache[listId].map((item, idx)=>
+        `<div data-idx="${idx}" data-list="${listId}"
+          style="padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;font-size:14px;line-height:1.4;-webkit-tap-highlight-color:rgba(232,163,61,.15);"
+          onclick="selectOrtByIdx(this)"
+          ontouchend="event.preventDefault();selectOrtByIdx(this)">
+          <div style="color:var(--text);font-weight:500;">${esc(item.short)}</div>
+          <div style="color:var(--muted);font-size:11px;">${esc(item.label)}</div>
+        </div>`
+      ).join('');
+      list.style.display = 'block';
+    }catch(err){ list.style.display='none'; }
+  }, 350);
+}
+
+function selectOrtByIdx(el){
+  const idx    = parseInt(el.dataset.idx);
+  const listId = el.dataset.list;
+  const item   = (acCache[listId]||[])[idx];
+  if(!item) return;
+  // Dropdown schließen
+  const list = document.getElementById(listId);
+  if(list) list.style.display = 'none';
+
+  if(listId==='start-ort-list'){
+    // Startpunkt-Autocomplete
+    const input = document.getElementById('startOrtInput');
+    if(input){ input.value = item.short; }
+    trip.startOrt  = item.short;
+    trip.startLat  = parseFloat(item.lat);
+    trip.startLng  = parseFloat(item.lon);
+    saveTrip();
+    clearRouteCache('start');
+    renderStartpunkt_update();
+    berechneRouten().then(()=>{ if(leafletMap) renderMapMarkers(); });
+  } else {
+    // Etappen-Autocomplete
+    const input = document.getElementById('em-ort');
+    if(input){ input.value = item.short; input.blur(); }
+    window._selectedOrtLat = parseFloat(item.lat);
+    window._selectedOrtLon = parseFloat(item.lon);
+  }
+}
+
+// Alte Signatur als Alias falls noch irgendwo aufgerufen
+function selectOrt(short, display, lat, lon, listId){
+  const input = document.getElementById('em-ort');
+  if(input) input.value = short;
+  const list = document.getElementById(listId);
+  if(list) list.style.display = 'none';
+  window._selectedOrtLat = parseFloat(lat);
+  window._selectedOrtLon = parseFloat(lon);
+}
+
+function updateWebsiteLink(url){
+  const link = document.getElementById('em-website-link');
+  const a    = document.getElementById('em-website-a');
+  if(!link||!a) return;
+  if(url && url.startsWith('http')){ a.href=url; link.style.display='block'; }
+  else { link.style.display='none'; }
+}
+
+// Dropdown schließen beim Tippen außerhalb
+document.addEventListener('click', e=>{
+  if(!e.target.closest('[id$="-list"]') && !e.target.id?.includes('em-ort')){
+    document.querySelectorAll('[id$="-list"]').forEach(l=>l.style.display='none');
+  }
+});
+
+async function neuberechnungEtappe(etappeId){
+  const idx  = trip.etappen.findIndex(x=>x.id===etappeId);
+  const hint = document.getElementById('osrm-hint-'+etappeId);
+  if(idx < 0) return;
+  const prev = idx===0 ? {lat:trip.startLat,lng:trip.startLng,ort:trip.startOrt} : trip.etappen[idx-1];
+  const curr = trip.etappen[idx];
+  if(!prev?.lat||!prev?.lng){ if(hint){hint.textContent='⚠️ Vorheriger Ort hat keine Koordinaten.';hint.style.display='block';} return; }
+  if(!curr.lat||!curr.lng){ if(hint){hint.textContent='⚠️ Dieser Ort hat keine Koordinaten – bitte Ort speichern.';hint.style.display='block';} return; }
+  if(hint){ hint.textContent='⏳ Berechne Route…'; hint.style.display='block'; }
+  try{
+    const route = await fetchRoute(prev.lat,prev.lng,curr.lat,curr.lng);
+    // Direkt in die Modal-Felder schreiben
+    const kmInput = document.getElementById('em-km');
+    const hInput  = document.getElementById('em-h');
+    if(kmInput) kmInput.value = route.km;
+    if(hInput)  hInput.value  = route.stunden;
+    if(hint){ hint.textContent=`✅ ${route.km} km · ${route.stunden} h (OSRM Routing)`; }
+    // Cache aktualisieren
+    const prevId = idx===0 ? 'start' : trip.etappen[idx-1].id;
+    routeCache[`${prevId}→${etappeId}`] = route;
+  }catch(err){
+    if(hint){ hint.textContent='❌ Berechnung fehlgeschlagen: '+err.message; }
+  }
+}
+
+function clearRouteCache(etappeId){
+  // Alle Cache-Einträge die diese Etappe betreffen löschen
+  Object.keys(routeCache).forEach(k=>{ if(k.includes(etappeId)) delete routeCache[k]; });
+}
+
+function saveEtappe(id){
+  const e = trip.etappen.find(x=>x.id===id);
+  if(!e) return;
+  // Dropdown explizit schließen
+  const ortList = document.getElementById('em-ort-list');
+  if(ortList) ortList.style.display = 'none';
+  // Ort lesen - Input muss noch im DOM sein
+  const ortInput = document.getElementById('em-ort');
+  const neuerOrt = ortInput ? ortInput.value.trim() : e.ort;
+  const altOrt = e.ort;
+  e.ort = neuerOrt;
+  if(e.ort !== altOrt){
+    if(window._selectedOrtLat && window._selectedOrtLon){
+      // Koordinaten aus Autocomplete-Auswahl
+      e.lat = window._selectedOrtLat;
+      e.lng = window._selectedOrtLon;
+      window._selectedOrtLat = null;
+      window._selectedOrtLon = null;
+    } else {
+      // Koordinaten neu geocoden (Ort manuell getippt)
+      e.lat = null; e.lng = null;
+    }
+    clearRouteCache(e.id);
+  }
+  e.datumVon = document.getElementById('em-von').value;
+  e.datumBis = document.getElementById('em-bis').value;
+  e.stellplatz = document.getElementById('em-sp')?.value||e.stellplatz;
+  e.stellplatzWebsite = document.getElementById('em-website')?.value||e.stellplatzWebsite||'';
+  e.preisProNacht = parseFloat(document.getElementById('em-preis')?.value)||0;
+  e.status = document.getElementById('em-status')?.value||e.status;
+  e.notizen = document.getElementById('em-notizen')?.value||'';
+  if(document.getElementById('em-km')) e.entfernungKm=parseFloat(document.getElementById('em-km').value)||0;
+  if(document.getElementById('em-h')) e.fahrzeitStunden=parseFloat(document.getElementById('em-h').value)||0;
+  saveTrip(); closeEtappeModal(); renderAll();
+  // Sofort Routen neu berechnen (Koordinaten vorhanden)
+  if(e.lat && e.lng){
+    berechneRouten();
+  }
+  // Geocoding + dann Routen berechnen (manuell getippter Ort ohne Koordinaten)
+  if(e.ort && !e.lat){
+    geocodeEtappe(e);
+  }
+}
+
+function toggleAm(id,field,btn){
+  const e = trip.etappen.find(x=>x.id===id);
+  if(!e) return;
+  e[field]=!e[field];
+  btn.classList.toggle('on', e[field]);
+  saveTrip();
+}
+
+function confirmDeleteEtappe(id){
+  const e=trip.etappen.find(x=>x.id===id);
+  document.getElementById('confirmTitle').textContent='Etappe löschen';
+  document.getElementById('confirmMsg').textContent=`„${e?.ort||'Etappe'}" wirklich löschen?`;
+  document.getElementById('confirmOk').onclick=()=>{ trip.etappen=trip.etappen.filter(x=>x.id!==id); saveTrip(); closeConfirm(); closeEtappeModal(); renderAll(); };
+  document.getElementById('confirmModal').classList.add('open');
+}
+function closeConfirm(){ document.getElementById('confirmModal').classList.remove('open'); }
+
+// ═══════════════════════════════════════════
+//  GPS
+// ═══════════════════════════════════════════
+function startGPS(){
+  if(!navigator.geolocation){
+    gpsError='Dein Gerät unterstützt kein GPS.';
+    updateGpsBtn();
+    return;
+  }
+  gpsRequested = true;
+  updateGpsBtn('⏳');
+
+  // Erst schnelle Einzelabfrage für sofortigen Fix
+  navigator.geolocation.getCurrentPosition(
+    pos => onGpsSuccess(pos),
+    err => onGpsError(err),
+    {enableHighAccuracy:false, timeout:8000, maximumAge:30000}
+  );
+
+  // Dann dauerhaftes Tracking mit höherer Genauigkeit
+  navigator.geolocation.watchPosition(
+    pos => onGpsSuccess(pos),
+    err => onGpsError(err),
+    {enableHighAccuracy:true, maximumAge:10000, timeout:20000}
+  );
+}
+
+function onGpsSuccess(pos){
+  gpsError = null;
+  gpsPos = {lat:pos.coords.latitude, lng:pos.coords.longitude, acc:pos.coords.accuracy};
+  updateGpsBtn('🎯');
+  if(leafletMap){
+    if(!gpsMarker){
+      gpsMarker = L.circleMarker([gpsPos.lat,gpsPos.lng],{
+        radius:9, fillColor:'#4A7AA3', fillOpacity:.9,
+        color:'#fff', weight:2
+      }).addTo(leafletMap).bindPopup('📍 Dein Standort');
+    } else {
+      gpsMarker.setLatLng([gpsPos.lat,gpsPos.lng]);
+    }
+  }
+}
+
+function onGpsError(err){
+  let msg = '';
+  switch(err.code){
+    case 1: msg='GPS-Zugriff verweigert. Bitte in den Browser-Einstellungen erlauben.'; break;
+    case 2: msg='GPS-Signal nicht verfügbar. Bitte ins Freie gehen.'; break;
+    case 3: msg='GPS-Zeitüberschreitung. Bitte erneut versuchen.'; break;
+    default: msg='GPS-Fehler: '+err.message;
+  }
+  gpsError = msg;
+  updateGpsBtn('❌');
+}
+
+function updateGpsBtn(icon){
+  const btn = document.getElementById('gpsBtn');
+  if(btn && icon) btn.textContent = icon;
+}
+
+function centerGPS(){
+  if(!navigator.geolocation){
+    showGpsInfo('GPS wird von diesem Browser nicht unterstützt.');
+    return;
+  }
+  if(!gpsPos && gpsError){
+    showGpsInfo(gpsError);
+    return;
+  }
+  if(!gpsPos){
+    // Noch kein Fix – aktiv anfragen und warten
+    updateGpsBtn('⏳');
+    showGpsInfo('GPS wird abgefragt – bitte kurz warten…');
+    if(!gpsRequested) startGPS();
+    return;
+  }
+  leafletMap && leafletMap.setView([gpsPos.lat, gpsPos.lng], 15, {animate:true});
+  updateGpsBtn('🎯');
+}
+
+function showGpsInfo(msg){
+  // Kurze Toast-Meldung unten anzeigen
+  let toast = document.getElementById('gpsToast');
+  if(!toast){
+    toast = document.createElement('div');
+    toast.id = 'gpsToast';
+    toast.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(30,35,28,.95);color:#EDE8DE;padding:10px 16px;border-radius:10px;font-size:13px;z-index:9999;border:1px solid #3A4136;max-width:280px;text-align:center;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.display = 'block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>{ toast.style.display='none'; }, 4000);
+}
+
+// ═══════════════════════════════════════════
+//  LEAFLET MAP
+// ═══════════════════════════════════════════
+function initMap(){
+  if(leafletMap) return;
+  leafletMap = L.map('map',{zoomControl:false,attributionControl:true}).setView([48,12],6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap',
+    maxZoom:19
+  }).addTo(leafletMap);
+  renderMapMarkers();
+}
+
+// ═══════════════════════════════════════════
+//  OSRM ROUTING
+// ═══════════════════════════════════════════
+// ── Gewichtsbasierter OSRM-Korrekturfaktor ──
+function osrmZeitFaktor(){
+  const g = vehicle.gewicht||0;
+  if(g<=0||g<=3.5) return 1.0;   // PKW-Profil passt
+  if(g<=7.5)       return 1.35;  // 80 km/h statt ~130 auf Autobahn
+  return             1.45;        // > 7.5 t
+}
+
+// ── OSRM + Korrekturfaktor ──
+async function fetchRouteOSRM(lat1, lon1, lat2, lon2){
+  const url = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=full&geometries=geojson`;
+  const r = await Promise.race([
+    fetch(url),
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('Timeout')),8000))
+  ]);
+  if(!r.ok) throw new Error('OSRM HTTP '+r.status);
+  const d = await r.json();
+  if(d.code!=='Ok'||!d.routes?.length) throw new Error('Keine Route gefunden');
+  const route  = d.routes[0];
+  const faktor = osrmZeitFaktor();
+  return {
+    km:      Math.round(route.distance/100)/10,
+    stunden: Math.round(route.duration*faktor/360)/10,
+    faktor,
+    quelle:  'OSRM'+(faktor>1?` (×${faktor} Gewichtskorrektur)`:''),
+    coords:  route.geometry.coordinates.map(c=>[c[1],c[0]])
+  };
+}
+
+// ── OpenRouteService HGV-Profil ──
+async function fetchRouteORS(lat1, lon1, lat2, lon2){
+  const key = vehicle.orsKey?.trim();
+  if(!key) throw new Error('Kein ORS API-Key eingetragen');
+  const g = vehicle.gewicht||0;
+  const profile = g>3.5 ? 'driving-hgv' : 'driving-car';
+
+  // Hilfsfunktion: eine ORS-Anfrage schicken
+  async function orsRequest(body){
+    const r = await Promise.race([
+      fetch(`https://api.openrouteservice.org/v2/directions/${profile}/geojson`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':key},
+        body:JSON.stringify(body)
+      }),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('ORS Timeout (12s)')),12000))
+    ]);
+    if(!r.ok){
+      let msg=`HTTP ${r.status}`;
+      try{ const e=await r.json(); msg=e?.error?.message||msg; }catch{}
+      throw new Error('ORS: '+msg);
+    }
+    const d = await r.json();
+    const props = d.features?.[0]?.properties;
+    const dist  = props?.summary?.distance ?? props?.segments?.[0]?.distance;
+    const dur   = props?.summary?.duration ?? props?.segments?.[0]?.duration;
+    if(dist==null) throw new Error('ORS: Unerwartetes Antwortformat');
+    return {dist, dur, coords: d.features[0].geometry.coordinates.map(c=>[c[1],c[0]])};
+  }
+
+  const base = {coordinates:[[lon1,lat1],[lon2,lat2]], instructions:false};
+
+  // 1. Versuch: mit Fahrzeugprofil und Einschränkungen
+  if(profile==='driving-hgv'){
+    const restrictions = {
+      ...(g>0              && {weight: g}),
+      ...(vehicle.hoehe>0  && {height: vehicle.hoehe}),
+      ...(vehicle.breite>0 && {width:  vehicle.breite}),
+      ...(vehicle.laenge>0 && {length: vehicle.laenge}),
+    };
+    try{
+      const r = await orsRequest({...base, options:{vehicle_type:'hgv', profile_params:{restrictions}}});
+      return {km:Math.round(r.dist/100)/10, stunden:Math.round(r.dur/360)/10, faktor:null, quelle:`ORS HGV (Fahrzeugprofil)`, coords:r.coords};
+    }catch(e){
+      // Bei "Route not found": nochmal ohne Einschränkungen versuchen
+      if(!e.message.includes('could not be found') && !e.message.includes('Unable to find')) throw e;
+      console.warn('ORS HGV mit Einschränkungen fehlgeschlagen, versuche ohne:', e.message);
+    }
+
+    // 2. Versuch: HGV ohne Einschränkungen (Route existiert, aber Restriktionen zu streng)
+    try{
+      const r = await orsRequest({...base, options:{vehicle_type:'hgv'}});
+      return {km:Math.round(r.dist/100)/10, stunden:Math.round(r.dur/360)/10, faktor:null, quelle:`ORS HGV (ohne Einschränkungen)`, coords:r.coords};
+    }catch(e2){
+      console.warn('ORS HGV ohne Einschränkungen fehlgeschlagen:', e2.message);
+    }
+  }
+
+  // 3. Versuch: driving-car als letzter Fallback
+  const r = await orsRequest(base);
+  return {km:Math.round(r.dist/100)/10, stunden:Math.round(r.dur/360)/10, faktor:null, quelle:`ORS driving-car`, coords:r.coords};
+}
+
+// ORS Key testen (mit driving-car – testet nur die Authentifizierung)
+async function testOrsKey(){
+  const btn = document.getElementById('orsTestBtn');
+  const res = document.getElementById('orsTestResult');
+  if(btn) btn.disabled=true;
+  if(res){ res.textContent='⏳ Teste Key…'; res.style.color='var(--muted)'; }
+  const key = vehicle.orsKey?.trim();
+  if(!key){
+    if(res){ res.textContent='❌ Kein Key eingetragen'; res.style.color='var(--red)'; }
+    if(btn) btn.disabled=false;
+    return;
+  }
+  try{
+    // Einfache Testroute mit driving-car (kein HGV) → testet nur den Key
+    const r = await Promise.race([
+      fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':key},
+        body:JSON.stringify({coordinates:[[11.5755,48.1374],[10.8983,48.3717]],instructions:false})
+      }),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('Timeout')),8000))
+    ]);
+    if(r.status===401||r.status===403) throw new Error('Key ungültig oder abgelaufen');
+    if(!r.ok){
+      let msg=`HTTP ${r.status}`;
+      try{ const e=await r.json(); msg=e?.error?.message||msg; }catch{}
+      throw new Error(msg);
+    }
+    const d = await r.json();
+    const km = d.features?.[0]?.properties?.summary?.distance;
+    if(res){
+      res.textContent = km
+        ? `✅ Key gültig · ORS HGV wird beim Routing genutzt`
+        : '✅ Key gültig (Antwort ungewöhnlich)';
+      res.style.color='var(--green)';
+    }
+  }catch(e){
+    if(res){ res.textContent='❌ '+e.message; res.style.color='var(--red)'; }
+  }
+  if(btn) btn.disabled=false;
+}
+
+// ── Universelle Routing-Funktion ──
+async function fetchRoute(lat1, lon1, lat2, lon2){
+  if(vehicle.routingMode==='ors' && vehicle.orsKey?.trim()){
+    try{ return await fetchRouteORS(lat1,lon1,lat2,lon2); }
+    catch(e){
+      console.warn('ORS fehlgeschlagen, Fallback OSRM:', e.message);
+      const res = await fetchRouteOSRM(lat1,lon1,lat2,lon2);
+      res.quelle += ' (ORS-Fallback)';
+      return res;
+    }
+  }
+  return fetchRouteOSRM(lat1,lon1,lat2,lon2);
+}
+
+// Nur Berechnung – kein leafletMap nötig, sofort nach Ort-Änderung aufrufbar
+async function berechneRouten(){
+  const punkte = [];
+  if(trip.startLat&&trip.startLng) punkte.push({lat:trip.startLat,lng:trip.startLng,id:'start'});
+  trip.etappen.filter(e=>e.lat&&e.lng).forEach(e=>punkte.push({lat:e.lat,lng:e.lng,id:e.id}));
+  if(punkte.length<2) return;
+
+  let changed = false;
+  for(let i=1;i<punkte.length;i++){
+    const a=punkte[i-1], b=punkte[i];
+    const key=`${a.id}→${b.id}`;
+    if(routeCache[key]) continue; // schon im Cache
+    try{
+      const route = await fetchRoute(a.lat,a.lng,b.lat,b.lng);
+      routeCache[key] = route;
+      const etappe = trip.etappen.find(e=>e.id===b.id);
+      if(etappe){
+        // Immer übernehmen wenn Wert aus OSRM kommt (0 oder berechnet)
+        if(!etappe.entfernungKm || etappe.entfernungKm===0){
+          etappe.entfernungKm   = route.km;
+          etappe.fahrzeitStunden = route.stunden;
+        }
+        changed = true;
+      }
+    }catch(err){ console.warn('Route fehlgeschlagen:', key, err.message); }
+  }
+  if(changed){
+    saveTrip();
+    renderStats();   // Gesamtstrecke sofort aktualisieren
+    renderEtappen(); // km in jeder Etappe sofort anzeigen
+  }
+}
+
+// Berechnung + Karte neu zeichnen (nur wenn Karte offen)
+async function berechneAlleRouten(){
+  await berechneRouten(); // Zahlen zuerst
+  if(leafletMap) renderMapMarkers(); // dann Karte wenn vorhanden
+}
+
+function renderMapMarkers(){
+  if(!leafletMap) return;
+  etappeMarkers.forEach(m=>m.remove());
+  etappeMarkers=[];
+  routeLayers.forEach(l=>l.remove());
+  routeLayers=[];
+  if(routeLayer){routeLayer.remove();routeLayer=null;}
+  const coords=[];
+  trip.etappen.forEach((e,i)=>{
+    if(!e.lat||!e.lng) return;
+    const m=L.marker([e.lat,e.lng],{
+      icon:L.divIcon({html:`<div style="background:var(--accent);color:#1B1F1D;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);">${i+1}</div>`,iconSize:[28,28],iconAnchor:[14,14],className:''})
+    }).addTo(leafletMap);
+    m.bindPopup(`<b>${e.ort}</b><br>${e.stellplatz||''}`);
+    etappeMarkers.push(m);
+    coords.push([e.lat,e.lng]);
+  });
+  if(coords.length>1){
+    routeLayer=L.polyline(coords,{color:'#E8A33D',weight:3,dashArray:'8 5',opacity:.8}).addTo(leafletMap);
+    leafletMap.fitBounds(routeLayer.getBounds(),{padding:[20,20]});
+  }
+  // Geocode Etappen ohne Koordinaten
+  trip.etappen.filter(e=>e.ort&&!e.lat).forEach(e=>geocodeEtappe(e));
+  // OSRM-Routen als echte Straßenlinien einzeichnen
+  const punkte=[];
+  if(trip.startLat&&trip.startLng) punkte.push({lat:trip.startLat,lng:trip.startLng,id:'start'});
+  trip.etappen.filter(e=>e.lat&&e.lng).forEach(e=>punkte.push({lat:e.lat,lng:e.lng,id:e.id}));
+  for(let i=1;i<punkte.length;i++){
+    const a=punkte[i-1],b=punkte[i];
+    const key=`${a.id}→${b.id}`;
+    if(routeCache[key]?.coords){
+      const line=L.polyline(routeCache[key].coords,{
+        color:'#E8A33D',weight:4,opacity:.85,
+        dashArray:null  // durchgezogene Linie (echte Route)
+      }).addTo(leafletMap);
+      const km=routeCache[key].km;
+      const h=routeCache[key].stunden;
+      line.bindPopup(`🛣️ ${km} km · ${h} h`);
+      routeLayers.push(line);
+    }
+  }
+
+  // Startpunkt-Marker
+  if(trip.startLat&&trip.startLng){
+    const startM=L.marker([trip.startLat,trip.startLng],{
+      icon:L.divIcon({html:`<div style="background:var(--green);color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);">🏠</div>`,iconSize:[28,28],iconAnchor:[14,14],className:''})
+    }).addTo(leafletMap).bindPopup(`<b>Start: ${esc(trip.startOrt)}</b>`);
+    etappeMarkers.push(startM);
+    coords.unshift([trip.startLat,trip.startLng]);
+  }
+}
+
+async function geocodeEtappe(e){
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(e.ort)}&format=json&limit=1&accept-language=de`);
+    const d=await r.json();
+    if(d[0]){
+      e.lat=parseFloat(d[0].lat);
+      e.lng=parseFloat(d[0].lon);
+      saveTrip();
+      // Routen sofort berechnen (ohne Karten-Abhängigkeit)
+      await berechneRouten();
+      // Karte nur aktualisieren wenn offen
+      if(leafletMap) renderMapMarkers();
+    }
+  }catch{}
+}
+
+// ═══════════════════════════════════════════
+//  ALLE STELLPLÄTZE IM KARTENAUSSCHNITT LADEN
+// ═══════════════════════════════════════════
+async function ladeAlleStellplaetze(){
+  if(!leafletMap) return;
+  const btn = document.getElementById('ladeAlleBtn');
+  if(btn){ btn.textContent='⏳ Lädt…'; btn.disabled=true; }
+
+  // Aktuellen Kartenausschnitt ermitteln
+  const b = leafletMap.getBounds();
+  const s = b.getSouth().toFixed(4);
+  const w = b.getWest().toFixed(4);
+  const n = b.getNorth().toFixed(4);
+  const e = b.getEast().toFixed(4);
+
+  // Overpass-Query mit Bounding Box (alle im Ausschnitt, kein Radius-Limit)
+  const query = `[out:json][timeout:20];(
+    node["tourism"~"camp_site|caravan_site"](${s},${w},${n},${e});
+    way["tourism"~"camp_site|caravan_site"](${s},${w},${n},${e});
+    relation["tourism"~"camp_site|caravan_site"](${s},${w},${n},${e});
+  );out center 200;`;
+
+  try{
+    const tryOv = url => fetch(url,{method:'POST',body:'data='+encodeURIComponent(query)})
+      .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
+
+    const ovData = await withTimeout(
+      Promise.any([
+        tryOv('https://overpass-api.de/api/interpreter'),
+        tryOv('https://overpass.kumi.systems/api/interpreter'),
+      ]),
+      18000, 'Overpass'
+    );
+
+    // Alte Stellplatz-Marker entfernen
+    clearSpMarkers();
+
+    const elements = ovData.elements||[];
+    const center = leafletMap.getCenter();
+
+    elements.forEach(el=>{
+      const t   = el.tags||{};
+      const lat = el.lat??el.center?.lat;
+      const lon = el.lon??el.center?.lon;
+      if(!lat||!lon) return;
+
+      const name = t.name||t['name:de']||'Campingplatz';
+      const ort  = t['addr:city']||t['addr:town']||t['addr:village']||'';
+      const web  = t.website||t['contact:website']||'';
+      const am   = [
+        t.electric_hookup==='yes'||t.power_supply==='yes' ? '⚡ Strom'  : '',
+        t.drinking_water==='yes'                          ? '💧 Wasser' : '',
+        t.sanitary_dump_station==='yes'                   ? '♻️ Entsorgung':'',
+        t.internet_access&&t.internet_access!=='no'       ? '📶 WLAN'  : '',
+        t.dog==='yes'                                     ? '🐕 Hunde' : '',
+      ].filter(Boolean).join(' · ');
+
+      const preisText = t.fee==='yes' ? (t.charge||'kostenpflichtig') : t.fee==='no' ? 'kostenlos' : '';
+
+      const popupHtml = `<div class="sp-popup">
+        <div class="sp-name">${name}</div>
+        ${ort?`<div class="sp-am">${ort}</div>`:''}
+        ${am?`<div class="sp-am">${am}</div>`:''}
+        ${preisText?`<div class="sp-am">💶 ${preisText}</div>`:''}
+        ${web?`<a href="${web}" target="_blank">Website ↗</a>`:''}
+      </div>`;
+
+      const m = L.marker([lat,lon],{
+        icon: L.divIcon({
+          html:`<div style="background:#7fa37a;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.4);">⛺</div>`,
+          iconSize:[28,28],iconAnchor:[14,14],className:''
+        })
+      }).addTo(leafletMap).bindPopup(popupHtml);
+
+      spMarkers.push(m);
+    });
+
+    if(btn){
+      btn.textContent=`⛺ ${elements.length} geladen`;
+      btn.disabled=false;
+    }
+    renderMapOverlay();
+
+    if(!elements.length){
+      showGpsInfo('Keine Stellplätze im aktuellen Kartenausschnitt gefunden.');
+    }
+
+  }catch(err){
+    if(btn){ btn.textContent='⛺ Alle laden'; btn.disabled=false; }
+    showGpsInfo('Laden fehlgeschlagen: '+err.message);
+  }
+}
+
+function renderMapOverlay(){
+  const lbl=document.getElementById('nextLegLabel');
+  const act=document.getElementById('mapActions');
+  if(!lbl||!act) return;
+  // Stellplatz-Marker-Button anzeigen wenn welche aktiv sind
+  const spClearBtn = document.getElementById('spClearBtn');
+  if(spClearBtn) spClearBtn.style.display = spMarkers.length ? 'inline-flex' : 'none';
+  const now=new Date().toISOString().slice(0,10);
+  const next=trip.etappen.find(e=>e.datumVon>=now)||trip.etappen[trip.etappen.length-1];
+  const prev=next?trip.etappen[trip.etappen.indexOf(next)-1]:null;
+  if(!next){lbl.textContent='Keine Etappen'; act.innerHTML=''; return;}
+  lbl.textContent=prev?`${prev.ort||'?'} → ${next.ort||'?'}`:(next.ort||'Etappe 1');
+  let actions='';
+  if(prev?.ort&&next?.ort){
+    const gmaps=`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(prev.ort)}&destination=${encodeURIComponent(next.ort)}&travelmode=driving`;
+    actions+=`<a href="${gmaps}" target="_blank" class="btn btn-secondary btn-small" style="text-decoration:none;">🗺️ Google Maps</a>`;
+  }
+  act.innerHTML=actions;
+}
+
+// ═══════════════════════════════════════════
+//  CLAUDE API – Stellplätze & Routen-Check
+// ═══════════════════════════════════════════
+async function callAI(prompt){
+  const p = aiProvider || getProvider(apiKey);
+  let r, d;
+  if(p==='groq'||p==='openrouter'){
+    const url = p==='groq'
+      ? 'https://api.groq.com/openai/v1/chat/completions'
+      : 'https://openrouter.ai/api/v1/chat/completions';
+    const model = p==='groq'
+      ? 'llama3-70b-8192'
+      : 'meta-llama/llama-3.1-70b-instruct:free';
+    r=await fetch(url,{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+      body:JSON.stringify({model,max_tokens:1200,messages:[{role:'user',content:prompt}]})
+    });
+    d=await r.json();
+    return d.choices?.[0]?.message?.content||'';
+  } else if(p==='claude'){
+    r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1200,
+        messages:[{role:'user',content:prompt}],
+        tools:[{type:'web_search_20250305',name:'web_search'}]})
+    });
+    d=await r.json();
+    return (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+  } else {
+    r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],tools:[{google_search:{}}]})
+    });
+    d=await r.json();
+    return (d.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('\n');
+  }
+}
+
+async function searchNearby(etappeId){
+  const e=trip.etappen.find(x=>x.id===etappeId);
+  if(!e?.ort?.trim()){alert('Bitte zuerst einen Ort eintragen.');return;}
+  nearbyLoading[etappeId]=true; nearbyCache[etappeId]=null; renderEtappen();
+  try{
+    if(appMode==='free'){
+      await searchNearbyOSM(etappeId, e);
+    } else {
+      await searchNearbyAI(etappeId, e);
+    }
+  }catch(err){
+    console.error('searchNearby Fehler:', err);
+    const ort = trip.etappen.find(x=>x.id===etappeId)?.ort||'';
+    const googleUrl = `https://www.google.com/search?q=${encodeURIComponent('Campingplatz Stellplatz '+ort)}`;
+    nearbyCache[etappeId]={
+      error: `Suche fehlgeschlagen (${err.message}). Direkt bei Google suchen:`,
+      fallbackUrl: googleUrl
+    };
+  }
+  nearbyLoading[etappeId]=false; renderEtappen();
+}
+
+function withTimeout(promise, ms, label){
+  return Promise.race([
+    promise,
+    new Promise((_,r)=>setTimeout(()=>r(new Error(label+' Timeout ('+ms/1000+'s)')), ms))
+  ]);
+}
+
+async function searchNearbyOSM(etappeId, e){
+  const ortRaw = e.ort.trim();
+  const ortEnc = encodeURIComponent(ortRaw);
+  const isHttps = location.protocol === 'https:';
+
+  // ── HTTPS (z.B. GitHub Pages) oder lokaler Server → echte OSM-Daten ──
+  if(isHttps || serverOnline){
+    try{
+      // 1. Koordinaten via Nominatim
+      const geoRes = await withTimeout(
+        fetch(`https://nominatim.openstreetmap.org/search?q=${ortEnc}&format=json&limit=1&accept-language=de`),
+        6000, 'Geocoding'
+      );
+      const geoData = await geoRes.json();
+      if(!geoData[0]) throw new Error('Ort nicht gefunden – bitte genauer eingeben');
+      const lat = parseFloat(geoData[0].lat);
+      const lon = parseFloat(geoData[0].lon);
+
+      // 2. Lokaler Server wenn verfügbar (eigene DB + OSM)
+      if(serverOnline){
+        const r = await withTimeout(
+          fetch(`${SERVER_URL}/api/kombiniert?lat=${lat}&lon=${lon}&radius=30000`),
+          12000, 'Server'
+        );
+        const d = await r.json();
+        if(d.daten?.length){
+          const items = d.daten.slice(0,10).map(s=>({
+            name: s.name, ort: s.ort||'',
+            entfernung: s.entfernung!=null ? s.entfernung+' km' : '',
+            hinweise: [s.strom?'⚡':'',s.wasser?'💧':'',s.entsorgung?'♻️':'',s.wlan?'📶':'',s.hunde?'🐕':'',s.beschreibung||''].filter(Boolean).join(' '),
+            quelle: s.website||`https://www.google.com/maps/search/${encodeURIComponent(s.name+' '+s.ort)}`,
+          }));
+          nearbyCache[etappeId]={items, source:'osm'};
+          return;
+        }
+      }
+
+      // 3. Overpass direkt (funktioniert auf HTTPS ohne CORS-Probleme)
+      const radiusM = (vehicle.suchRadius||30)*1000;
+      const query=`[out:json][timeout:15];(
+        node["tourism"~"camp_site|caravan_site"](around:${radiusM},${lat},${lon});
+        way["tourism"~"camp_site|caravan_site"](around:${radiusM},${lat},${lon});
+        relation["tourism"~"camp_site|caravan_site"](around:${radiusM},${lat},${lon});
+      );out center 50;`;
+
+      const tryOv = url => fetch(url,{
+        method:'POST',
+        body:'data='+encodeURIComponent(query)
+      }).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
+
+      const ovData = await withTimeout(
+        Promise.any([
+          tryOv('https://overpass-api.de/api/interpreter'),
+          tryOv('https://overpass.kumi.systems/api/interpreter'),
+          tryOv('https://maps.mail.ru/osm/tools/overpass/api/interpreter'),
+        ]),
+        13000, 'Overpass'
+      );
+
+      const elements = ovData.elements||[];
+      if(!elements.length){
+        // Keine OSM-Daten → zeige trotzdem Direktlinks
+        nearbyCache[etappeId] = buildLinkFallback(ortRaw, ortEnc,
+          '⚠️ Keine OSM-Einträge im 30 km Umkreis – hier sind alternative Suchen:');
+        return;
+      }
+
+      const items = elements.slice(0,20).map(el=>{
+        const t = el.tags||{};
+        const elLat = el.lat??el.center?.lat??lat;
+        const elLon = el.lon??el.center?.lon??lon;
+        const dist = Math.round(Math.sqrt(
+          Math.pow((elLat-lat)*111,2)+
+          Math.pow((elLon-lon)*111*Math.cos(lat*Math.PI/180),2)
+        )*10)/10;
+        const name = t.name||t['name:de']||'Campingplatz';
+        const ort2 = t['addr:city']||t['addr:town']||t['addr:village']||'';
+        const web  = t.website||t['contact:website']||
+          `https://www.google.com/maps/search/${encodeURIComponent(name+' '+ort2)}`;
+        const am = [
+          t.electric_hookup==='yes'||t.power_supply==='yes'?'⚡':'',
+          t.drinking_water==='yes'?'💧':'',
+          t.sanitary_dump_station==='yes'?'♻️':'',
+          t.internet_access&&t.internet_access!=='no'?'📶':'',
+          t.dog==='yes'?'🐕':'',
+        ].filter(Boolean).join(' ');
+        return {name, ort:ort2, entfernung:dist+' km', hinweise:am, quelle:web, lat:elLat, lng:elLon};
+      }).sort((a,b)=>parseFloat(a.entfernung)-parseFloat(b.entfernung));
+
+      nearbyCache[etappeId]={items, source:'osm'};
+      return;
+
+    }catch(err){
+      console.warn('OSM-Suche fehlgeschlagen:', err.message);
+      // Fällt durch zu Direktlinks
+    }
+  }
+
+  // ── Fallback: Direktlinks ──
+  nearbyCache[etappeId] = buildLinkFallback(ortRaw, ortEnc,
+    isHttps ? null : '💡 Auf GitHub Pages öffnen für echte OSM-Daten');
+}
+
+// ═══════════════════════════════════════════
+//  ACCORDION + STELLPLÄTZE AUF KARTE
+// ═══════════════════════════════════════════
+function toggleNearby(etappeId){
+  // Umschalten: undefined/true → false, false → true
+  nearbyOpen[etappeId] = (nearbyOpen[etappeId] === false) ? true : false;
+  renderEtappen(); // neu rendern mit aktuellem Zustand
+}
+
+function zeigeStellplaetzeAufKarte(etappeId){
+  const items = nearbyCache[etappeId]?.items||[];
+  // Alte Stellplatz-Marker entfernen
+  clearSpMarkers();
+  // Zur Karte wechseln
+  switchTab('karte');
+  // Neue Marker setzen
+  const bounds=[];
+  items.forEach((it,idx)=>{
+    if(!it.lat||!it.lng) return;
+    const popup=`<div class="sp-popup">
+      <div class="sp-name">${it.name}</div>
+      <div class="sp-am">${it.entfernung||''} ${it.hinweise?'· '+it.hinweise:''}</div>
+      ${it.quelle?`<a href="${it.quelle}" target="_blank">Website ↗</a>`:''}
+    </div>`;
+    const m=L.marker([it.lat,it.lng],{
+      icon:L.divIcon({
+        html:`<div style="background:#7fa37a;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.4);">⛺</div>`,
+        iconSize:[26,26],iconAnchor:[13,13],className:''
+      })
+    }).addTo(leafletMap).bindPopup(popup);
+    spMarkers.push(m);
+    bounds.push([it.lat,it.lng]);
+  });
+  if(bounds.length){
+    leafletMap.fitBounds(bounds,{padding:[40,40]});
+  } else {
+    showGpsInfo('Keine Koordinaten – OSM-Suche liefert automatisch Koordinaten, Direktlinks nicht.');
+  }
+  renderMapOverlay(); // Marker-entfernen-Button anzeigen
+}
+
+function buildLinkFallback(ortRaw, ortEnc, hinweis){
+  return {
+    items:[
+      {name:'park4night',    ort:ortRaw, entfernung:'App',  hinweise:'Größtes Wohnmobil-Netzwerk mit Fotos & Bewertungen', quelle:`https://park4night.com/recherche?query=${ortEnc}`},
+      {name:'ADAC Camping',  ort:ortRaw, entfernung:'Web',  hinweise:'Offizielle ADAC Campingplatz-Suche',                 quelle:`https://www.adac.de/reise-freizeit/campingsuche/?location=${ortEnc}`},
+      {name:'Pincamp',       ort:ortRaw, entfernung:'Web',  hinweise:'ADAC-Tochter – Direktbuchung möglich',               quelle:`https://www.pincamp.de/suche/?q=${ortEnc}`},
+      {name:'CamperContact', ort:ortRaw, entfernung:'Web',  hinweise:'Europäisches Stellplatz-Verzeichnis mit GPS',        quelle:`https://www.campercontact.com/de/suche?q=${ortEnc}`},
+      {name:'Google Maps',   ort:ortRaw, entfernung:'Karte',hinweise:'Campingplätze direkt auf Google Maps',               quelle:`https://www.google.com/maps/search/Campingplatz+${ortEnc}`},
+    ],
+    source:'links', hinweis
+  };
+}
+
+async function searchNearbyAI(etappeId, e){
+  const text = await callAI(
+    `Liste bis zu 5 Campingplätze oder Wohnmobil-Stellplätze in der Nähe von "${e.ort.trim()}". `+
+    `Suche per Websuche nach echten Webseiten (offizielle Seite, ADAC Camping, park4night, pincamp, campercontact). `+
+    `Antworte NUR mit einem JSON-Array, kein Markdown, keine Erklärung: `+
+    `[{"name":"...","ort":"...","entfernung":"...","hinweise":"...","quelle":"..."}]`
+  );
+  const clean = text.replace(/```json|```/g,'').trim();
+  // JSON aus der Antwort extrahieren (auch wenn Modell etwas Text davor schreibt)
+  const match = clean.match(/\[[\s\S]*\]/);
+  if(!match) throw new Error('Kein JSON in der Antwort');
+  const items = JSON.parse(match[0]);
+  nearbyCache[etappeId]={items, source:'ai'};
+}
+
+function adoptNearby(etappeId,idx){
+  const e=trip.etappen.find(x=>x.id===etappeId);
+  const it=nearbyCache[etappeId]?.items?.[idx];
+  if(!e||!it) return;
+
+  e.stellplatz = it.ort ? `${it.name} – ${it.ort}` : it.name;
+
+  // Website übernehmen wenn echte URL (kein Google-Suche-Link)
+  if(it.quelle?.startsWith('http')){
+    const isGoogle = it.quelle.includes('google.com/');
+    if(!isGoogle) e.stellplatzWebsite = it.quelle;
+  }
+
+  // Hinweis in Notizen übernehmen
+  if(it.hinweise) e.notizen=(e.notizen?e.notizen+'\n':'')+'Hinweis: '+it.hinweise;
+
+  // Campingplatz-Koordinaten übernehmen → Route zeigt direkt zum Platz
+  if(it.lat && it.lng){
+    const altLat = e.lat, altLng = e.lng;
+    e.lat = it.lat;
+    e.lng = it.lng;
+    // Route-Cache für diese Etappe löschen damit neu berechnet wird
+    clearRouteCache(e.id);
+    // Route sofort neu berechnen
+    saveTrip();
+    berechneRouten().then(()=>{
+      if(leafletMap) renderMapMarkers();
+    });
+    showGpsInfo(`📍 Route zu ${it.name} wird berechnet…`);
+  } else {
+    saveTrip();
+  }
+  renderEtappen();
+}
+
+async function checkLeg(etappeId){
+  const idx=trip.etappen.findIndex(x=>x.id===etappeId);
+  const to=trip.etappen[idx];
+  // fromOrt: bei erster Etappe = Startpunkt, sonst vorherige Etappe
+  const fromOrt = idx===0 ? trip.startOrt : (trip.etappen[idx-1]?.ort||'');
+  if(!fromOrt){ alert('Bitte Startpunkt oben eintragen.'); return; }
+  if(!to?.ort){ alert('Bitte Zielort der Etappe eintragen.'); return; }
+  if(appMode==='free'){
+    // Im kostenlosen Modus: Google-Suche öffnen
+    const q=encodeURIComponent(`Wohnmobil Höhenbeschränkung Gewichtsbeschränkung ${fromOrt} ${to.ort}`);
+    window.open(`https://www.google.com/search?q=${q}`,'_blank');
+    return;
+  }
+  if(!vehicle.hoehe&&!vehicle.gewicht){alert('Bitte zuerst Fahrzeugdaten (Höhe/Gewicht) eintragen.');return;}
+  const vDesc=`Höhe ${vehicle.hoehe}m, Breite ${vehicle.breite}m, Länge ${vehicle.laenge}m, Gewicht ${vehicle.gewicht}t`;
+  legWarnLoad[etappeId]=true; legWarnCache[etappeId]=null; renderEtappen();
+  try{
+    const text=await callAI(
+      `Wohnmobil (${vDesc}) von "${fromOrt}" nach "${to.ort}". `+
+      `Suche per Websuche nach bekannten Einschränkungen (niedrige Brücken, Gewichtsbeschränkungen, enge Tunnels, Verbote für Wohnmobile). `+
+      `Antworte NUR mit JSON, kein Markdown: {"warnungen":string[],"hinweis":string}`
+    );
+    const clean=text.replace(/\`\`\`json|\`\`\`/g,'').trim();
+    legWarnCache[etappeId]=JSON.parse(clean);
+  }catch{legWarnCache[etappeId]={error:'Prüfung fehlgeschlagen.'};}
+  legWarnLoad[etappeId]=false; renderEtappen();
+}
+
+// ═══════════════════════════════════════════
+//  BUDGET
+// ═══════════════════════════════════════════
+function unterkunftAuto(){
+  return trip.etappen.reduce((s,e)=>s+nightsBetween(e.datumVon,e.datumBis)*(Number(e.preisProNacht)||0),0);
+}
+function renderBudget(){
+  const el=document.getElementById('budgetContent');
+  if(!el) return;
+  const unterkunft=unterkunftAuto();
+  const cats=trip.budget.categories;
+  const totalGeplant=unterkunft+cats.reduce((s,c)=>s+(Number(c.geplant)||0),0);
+  const totalIst=unterkunft+cats.reduce((s,c)=>s+(Number(c.ist)||0),0);
+  const pct=totalGeplant>0?Math.min(Math.round(totalIst/totalGeplant*100),999):0;
+  const nights=trip.etappen.reduce((s,e)=>s+nightsBetween(e.datumVon,e.datumBis),0);
+  const perNight=nights>0?totalIst/nights:0;
+  el.innerHTML=`
+    <div class="bud-total-card">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Gesamtausgaben</div>
+      <div class="bud-big">${eur(totalIst)}</div>
+      <div class="bud-sub">von ${eur(totalGeplant)} geplant${nights>0?' · Ø '+eur(perNight)+'/Nacht':''}</div>
+      <div class="progress-track"><div class="progress-fill ${pct>100?'over':''}" style="width:${Math.min(pct,100)}%;"></div></div>
+      <div class="progress-labels"><span>${pct}% verwendet</span><span>${eur(Math.max(totalGeplant-totalIst,0))} verfügbar</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Kategorien</div>
+      <div class="cat-row">
+        <div class="cat-icon">🏕️</div>
+        <div class="cat-info">
+          <div class="cat-name">Unterkunft <span class="badge badge-green" style="font-size:9px;">auto</span></div>
+          <div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${totalGeplant>0?Math.min(unterkunft/totalGeplant*100,100):0}%;"></div></div>
+        </div>
+        <div class="cat-vals"><div class="cat-ist">${eur(unterkunft)}</div><div class="cat-geplant">Plan: ${eur(unterkunft)}</div></div>
+      </div>
+      ${cats.map(c=>{
+        const istPct=totalGeplant>0?Math.min((Number(c.ist)||0)/totalGeplant*100,100):0;
+        return `<div class="cat-row">
+          <div class="cat-icon">${c.icon||'📦'}</div>
+          <div class="cat-info">
+            <div class="cat-name">${esc(c.name)}</div>
+            <div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${istPct}%;"></div></div>
+          </div>
+          <div class="cat-vals">
+            <div class="cat-ist">${eur(c.ist)}</div>
+            <div class="cat-geplant">Plan: ${eur(c.geplant)}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <button class="btn-ghost" onclick="openBudgetEdit()">✏️ Beträge bearbeiten</button>
+  `;
+}
+
+function openBudgetEdit(){
+  const cats=trip.budget.categories;
+  let html=`<div class="modal-title">Budget bearbeiten</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Unterkunft wird automatisch aus Etappen berechnet.</div>`;
+  cats.forEach(c=>{
+    html+=`<div style="margin-bottom:12px;">
+      <div style="font-size:13px;color:var(--text);margin-bottom:6px;">${c.icon} ${esc(c.name)}</div>
+      <div style="display:flex;gap:8px;">
+        <input type="number" placeholder="Geplant €" value="${c.geplant||0}" min="0" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);" onchange="updateCat('${c.id}','geplant',this.value)">
+        <input type="number" placeholder="Ist €" value="${c.ist||0}" min="0" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);" onchange="updateCat('${c.id}','ist',this.value)">
+      </div>
+    </div>`;
+  });
+  html+=`<button class="btn btn-primary" onclick="closeBudgetEdit()">Fertig</button>`;
+  document.getElementById('settingsContent').innerHTML=html;
+  document.getElementById('settingsModal').classList.add('open');
+}
+function closeBudgetEdit(){ closeSettings(); renderBudget(); }
+function updateCat(id,field,val){ const c=trip.budget.categories.find(x=>x.id===id); if(c){c[field]=parseFloat(val)||0; saveTrip();} }
+
+// ═══════════════════════════════════════════
+//  FAHRZEUG + OBD2
+// ═══════════════════════════════════════════
+function renderFahrzeug(){
+  const el=document.getElementById('fahrzeugContent');
+  if(!el) return;
+  const tankPct=vehicle.tankGroesse>0&&obdState.tank!=null?Math.round(obdState.tank):null;
+  el.innerHTML=`
+    <div class="card">
+      <div class="card-title">🚐 Fahrzeugdaten</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        ${[['Höhe (m)','hoehe'],['Breite (m)','breite'],['Länge (m)','laenge'],['Gewicht (t)','gewicht']].map(([lbl,f])=>`
+          <div class="field" style="margin:0;"><label>${lbl}</label>
+            <input type="number" step="0.01" min="0" value="${vehicle[f]||''}" placeholder="0.00" oninput="updateVehicle('${f}',this.value)">
+          </div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="field" style="margin:0;"><label>Tank (L)</label><input type="number" min="0" value="${vehicle.tankGroesse||''}" placeholder="z.B. 90" oninput="updateVehicle('tankGroesse',this.value)"></div>
+        <div class="field" style="margin:0;"><label>Verbrauch (L/100km)</label><input type="number" min="0" step="0.1" value="${vehicle.verbrauch||''}" placeholder="z.B. 12" oninput="updateVehicle('verbrauch',this.value)"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔵 OBD2 Bluetooth</div>
+      ${obdState.connected?`
+        <div class="badge badge-green" style="margin-bottom:10px;">● Verbunden – ${esc(obdState.device?.name||'OBD2')}</div>
+        <div class="obd-grid">
+          <div class="obd-card">
+            <div class="obd-val">${obdState.speed!=null?Math.round(obdState.speed):'–'}</div>
+            <div class="obd-unit">km/h</div><div class="obd-label">Geschwindigkeit</div>
+          </div>
+          <div class="obd-card">
+            <div class="obd-val">${obdState.rpm!=null?Math.round(obdState.rpm):'–'}</div>
+            <div class="obd-unit">U/min</div><div class="obd-label">Drehzahl</div>
+          </div>
+          <div class="obd-card">
+            <div class="obd-val">${obdState.temp!=null?Math.round(obdState.temp):'–'}</div>
+            <div class="obd-unit">°C</div><div class="obd-label">Kühlmittel</div>
+          </div>
+          <div class="obd-card">
+            <div class="obd-val">${obdState.fuel!=null?obdState.fuel.toFixed(1):'–'}</div>
+            <div class="obd-unit">L/h</div><div class="obd-label">Kraftstoff</div>
+          </div>
+        </div>
+        ${obdState.tank!=null?`
+          <div style="margin-top:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px;">
+              <span>Tank</span><span>${Math.round(obdState.tank)}%${vehicle.tankGroesse>0?' · ca. '+Math.round(vehicle.tankGroesse*obdState.tank/100)+' L':''}</span>
+            </div>
+            <div class="tank-bar-wrap">
+              <div class="tank-bar ${obdState.tank<20?'low':obdState.tank<40?'mid':''}" style="width:${Math.round(obdState.tank)}%;"></div>
+            </div>
+            ${vehicle.verbrauch>0&&vehicle.tankGroesse>0?`<div style="font-size:11px;color:var(--muted);margin-top:4px;">Reichweite ca. ${Math.round(vehicle.tankGroesse*obdState.tank/100/vehicle.verbrauch*100)} km</div>`:''}
+          </div>`:''}
+        <button class="btn btn-secondary" style="margin-top:12px;" onclick="disconnectOBD()">Trennen</button>
+      `:`
+        <div class="obd-connecting">
+          <div class="pulse">🔵</div>
+          <div style="text-align:center;">
+            <div style="font-size:14px;color:var(--text);margin-bottom:6px;">OBD2 BLE Adapter verbinden</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.6;">Kompatibel mit BLE-Adaptern<br>(z.B. Veepeak Mini BLE, OBDLink CX)</div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;max-width:280px;" onclick="connectOBD()">🔍 Adapter suchen</button>
+        </div>
+        <div class="info-box amber" style="margin-top:0;">
+          <span class="ii">ℹ️</span>
+          <span class="it">Nur BLE-Adapter werden unterstützt. Klassische Bluetooth-Adapter (ohne BLE) funktionieren nicht. HTTPS erforderlich für Web Bluetooth.</span>
+        </div>
+      `}
+    </div>
+
+    ${vehicle.verbrauch>0&&trip.etappen.length>0?`
+    <div class="card">
+      <div class="card-title">⛽ Verbrauchsprognose</div>
+      ${trip.etappen.filter((_,i)=>i>0).map(e=>{
+        const liter=Math.round((Number(e.entfernungKm)||0)*vehicle.verbrauch/100*10)/10;
+        const kosten=liter*1.8;
+        return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+          <span style="color:var(--muted);">→ ${esc(e.ort)||'Etappe'}</span>
+          <span>${liter} L · ca. ${eur(kosten)}</span>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+  `;
+}
+
+function updateVehicle(field,val){ vehicle[field]=parseFloat(val)||0; saveVehicle(); }
+
+// ═══════════════════════════════════════════
+//  OBD2 BLE (Web Bluetooth)
+// ═══════════════════════════════════════════
+const OBD_SERVICE   = '0000fff0-0000-1000-8000-00805f9b34fb';
+const OBD_NOTIFY    = '0000fff1-0000-1000-8000-00805f9b34fb';
+const OBD_WRITE     = '0000fff2-0000-1000-8000-00805f9b34fb';
+
+async function connectOBD(){
+  if(!navigator.bluetooth){alert('Web Bluetooth wird in diesem Browser nicht unterstützt.\nBitte Chrome auf Android verwenden.');return;}
+  try{
+    const device=await navigator.bluetooth.requestDevice({
+      filters:[{services:[OBD_SERVICE]},{namePrefix:'OBDII'},{namePrefix:'OBD'},{namePrefix:'ELM'}],
+      optionalServices:[OBD_SERVICE,'0000ffe0-0000-1000-8000-00805f9b34fb']
+    });
+    const server=await device.gatt.connect();
+    let service, notify, write;
+    try{
+      service=await server.getPrimaryService(OBD_SERVICE);
+      notify=await service.getCharacteristic(OBD_NOTIFY);
+      write=await service.getCharacteristic(OBD_WRITE);
+    }catch{
+      const alt='0000ffe0-0000-1000-8000-00805f9b34fb';
+      service=await server.getPrimaryService(alt);
+      const chars=await service.getCharacteristics();
+      notify=chars.find(c=>c.properties.notify);
+      write=chars.find(c=>c.properties.writeWithoutResponse||c.properties.write);
+    }
+    await notify.startNotifications();
+    notify.addEventListener('characteristicvaluechanged',onOBDData);
+    obdState={connected:true,device,char:write,tank:null,speed:null,rpm:null,temp:null,fuel:null};
+    device.addEventListener('gattserverdisconnected',()=>{obdState.connected=false;renderFahrzeug();});
+    renderFahrzeug();
+    await initELM327();
+    startOBDPolling();
+  }catch(e){
+    if(e.name!=='NotFoundError') alert('Verbindung fehlgeschlagen: '+e.message);
+  }
+}
+
+function onOBDData(evt){
+  const val=new TextDecoder().decode(evt.target.value);
+  obdBuffer+=val;
+  if(obdBuffer.includes('>')){
+    const resp=obdBuffer.trim();
+    obdBuffer='';
+    if(obdQueue.length>0){
+      const {resolve}=obdQueue.shift();
+      resolve(resp);
+    }
+    obdBusy=false;
+    processQueue();
+  }
+}
+
+function sendOBD(cmd){ return new Promise((resolve,reject)=>{ obdQueue.push({cmd,resolve,reject}); processQueue(); }); }
+
+async function processQueue(){
+  if(obdBusy||!obdQueue.length) return;
+  obdBusy=true;
+  const {cmd}=obdQueue[0];
+  const enc=new TextEncoder().encode(cmd+'\r');
+  try{ await obdState.char.writeValue(enc); }catch(e){ obdBusy=false; if(obdQueue.length) obdQueue.shift().reject(e); }
+}
+
+async function initELM327(){
+  try{
+    await Promise.race([sendOBD('ATZ'), new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),3000))]);
+    await sendOBD('ATE0');
+    await sendOBD('ATL0');
+    await sendOBD('ATS0');
+    await sendOBD('ATH0');
+    await sendOBD('ATSP0');
+  }catch{}
+}
+
+function startOBDPolling(){
+  if(obdInterval) clearInterval(obdInterval);
+  pollOBD();
+  obdInterval=setInterval(pollOBD,2000);
+}
+
+async function pollOBD(){
+  if(!obdState.connected) return;
+  try{
+    const speed=await queryPID('010D'); if(speed!=null){obdState.speed=speed;}
+    const rpm=await queryPID('010C'); if(rpm!=null){obdState.rpm=rpm;}
+    const temp=await queryPID('0105'); if(temp!=null){obdState.temp=temp;}
+    const tank=await queryPID('012F'); if(tank!=null){obdState.tank=tank;}
+    const fuel=await queryPID('015E'); if(fuel!=null){obdState.fuel=fuel;}
+    if(activeTab==='fahrzeug') renderFahrzeug();
+  }catch{}
+}
+
+async function queryPID(pid){
+  try{
+    const resp=await Promise.race([sendOBD(pid),new Promise((_,r)=>setTimeout(()=>r(new Error('t')),1500))]);
+    return parsePID(pid,resp);
+  }catch{return null;}
+}
+
+function parsePID(pid,resp){
+  const clean=resp.replace(/[\r\n>]/g,'').replace(/\s/g,'');
+  const noErr=!['NODATA','ERROR','UNABLE','STOPPED','?'].some(e=>clean.includes(e));
+  if(!noErr) return null;
+  const bytes=clean.match(/.{2}/g)||[];
+  if(bytes.length<4) return null;
+  const data=bytes.slice(2).map(b=>parseInt(b,16));
+  switch(pid){
+    case '010C': return ((data[0]*256+data[1])/4);
+    case '010D': return data[0];
+    case '0105': return data[0]-40;
+    case '012F': return Math.round(data[0]/255*100);
+    case '015E': return ((data[0]*256+data[1])/20);
+    default: return null;
+  }
+}
+
+async function disconnectOBD(){
+  if(obdInterval){clearInterval(obdInterval);obdInterval=null;}
+  try{obdState.device?.gatt?.disconnect();}catch{}
+  obdState={connected:false,device:null,char:null,tank:null,speed:null,rpm:null,temp:null,fuel:null};
+  renderFahrzeug();
+}
+
+// ═══════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  TRIP MANAGER
+// ═══════════════════════════════════════════
+function openTripManager(){
+  const modal = document.getElementById('settingsModal');
+  const content = document.getElementById('settingsContent');
+  content.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="modal-title" style="margin:0;">Reisen</div>
+      <button onclick="createNewTrip()" style="background:var(--accent);color:#1B1F1D;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;">+ Neue Reise</button>
+    </div>
+    <div id="tripListContent"></div>
+  `;
+  modal.classList.add('open');
+  renderTripList();
+}
+
+function renderTripList(){
+  const el = document.getElementById('tripListContent');
+  if(!el) return;
+  el.innerHTML = trips.map(t=>`
+    <div style="background:${t.id===trip.id?'var(--accent-soft)':'var(--bg3)'};border:1.5px solid ${t.id===trip.id?'var(--accent)':'var(--border)'};border-radius:12px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:${t.id===trip.id?'700':'500'};color:${t.id===trip.id?'var(--accent)':'var(--text)'};margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.id===trip.id?'▶ ':''}${esc(t.name)}</div>
+        <div style="font-size:11px;color:var(--muted);">${t.startOrt?'ab '+esc(t.startOrt)+' · ':''}${t.etappen.length} Etappe${t.etappen.length!==1?'n':''}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        ${t.id!==trip.id?`<button onclick="switchTrip('${t.id}')" style="background:var(--green-soft);color:var(--green);border:1px solid var(--green);border-radius:7px;padding:6px 10px;font-size:12px;">Öffnen</button>`:'<span style="font-size:11px;color:var(--green);">Aktiv</span>'}
+        <button onclick="deleteTrip('${t.id}')" style="background:var(--red-soft);color:var(--red);border:1px solid var(--red);border-radius:7px;padding:6px 8px;font-size:13px;" ${trips.length<=1?'disabled title="Letzte Reise kann nicht gelöscht werden"':''}>🗑</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function switchTrip(id){
+  const t=trips.find(x=>x.id===id);
+  if(!t) return;
+  trip=t; activeId=id;
+  saveTrips();
+  nearbyCache={}; nearbyLoading={}; legWarnCache={}; legWarnLoad={};
+  closeSettings(); renderAll(); renderMapMarkers();
+}
+
+function createNewTrip(){
+  const t=newTripObj('Neue Reise '+(trips.length+1));
+  trips.push(t);
+  trip=t; activeId=t.id;
+  saveTrips();
+  nearbyCache={}; nearbyLoading={}; legWarnCache={}; legWarnLoad={};
+  closeSettings(); renderAll(); renderMapMarkers();
+}
+
+function deleteTrip(id){
+  if(trips.length<=1){ alert('Du kannst die letzte Reise nicht löschen.'); return; }
+  const t=trips.find(x=>x.id===id);
+  document.getElementById('confirmTitle').textContent='Reise löschen';
+  document.getElementById('confirmMsg').textContent=`„${t?.name||'Reise'}" wirklich löschen? Alle Etappen und Budgetdaten gehen verloren.`;
+  document.getElementById('confirmOk').textContent='Löschen';
+  document.getElementById('confirmOk').onclick=()=>{
+    trips=trips.filter(x=>x.id!==id);
+    if(trip.id===id){ trip=trips[0]; activeId=trip.id; }
+    saveTrips(); closeConfirm(); renderTripList(); renderAll();
+  };
+  document.getElementById('confirmModal').classList.add('open');
+}
+
+// geocodeStart: Startort auf Karte setzen
+async function geocodeStart(){
+  if(!trip.startOrt) return;
+  // Wenn bereits Koordinaten aus GPS oder Autocomplete vorhanden, nicht neu geocoden
+  if(trip.startLat && trip.startLng) return;
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trip.startOrt)}&format=json&limit=1&accept-language=de`);
+    const d=await r.json();
+    if(d[0]){
+      trip.startLat=parseFloat(d[0].lat);
+      trip.startLng=parseFloat(d[0].lon);
+      saveTrip();
+      clearRouteCache('start');
+      await berechneRouten();
+      if(leafletMap) renderMapMarkers();
+    }
+  }catch{}
+}
+
+function openSettings(){
+  const masked=apiKey?'AIza••••'+apiKey.slice(-4):'nicht gesetzt';
+  document.getElementById('settingsContent').innerHTML=`
+    <div class="settings-section">REISE</div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="field"><label>Reisename</label><input id="tripNameInput" value="${esc(trip.name)}" oninput="trip.name=this.value;saveTrip();document.getElementById('tripNameDisplay').textContent=this.value;"></div>
+      <div class="settings-row"><span class="sr-label">${trips.length} Reise${trips.length!==1?'n':''} gespeichert</span><button class="sr-action" onclick="closeSettings();openTripManager();">Alle Reisen verwalten →</button></div>
+    </div>
+    <div class="settings-section">ROUTING</div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="settings-row">
+        <span class="sr-label">Routing-Modus</span>
+        <select onchange="vehicle.routingMode=this.value;saveVehicle();routeCache={};berechneRouten();closeSettings();"
+          style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;">
+          <option value="osrm" ${vehicle.routingMode==='osrm'?'selected':''}>OSRM + Gewichtskorrektur</option>
+          <option value="ors"  ${vehicle.routingMode==='ors'?'selected':''}>OpenRouteService HGV</option>
+        </select>
+      </div>
+      ${vehicle.routingMode==='osrm'?`
+      <div style="font-size:11px;color:var(--muted);padding:6px 0 2px;">
+        Korrekturfaktor: ×${osrmZeitFaktor()} (basiert auf Gewicht ${vehicle.gewicht||'?'} t).<br>
+        ≤ 3,5 t: ×1,0 · 3,5–7,5 t: ×1,35 · > 7,5 t: ×1,45
+      </div>`:''}
+      ${vehicle.routingMode==='ors'?`
+      <div class="field" style="margin-top:10px;margin-bottom:0;">
+        <label>OpenRouteService API-Key</label>
+        <input type="password" id="orsKeyInput" value="${esc(vehicle.orsKey||'')}"
+          placeholder="Key von openrouteservice.org"
+          oninput="vehicle.orsKey=this.value;saveVehicle();">
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6;">
+        Kostenloser Key unter <span style="color:var(--accent);">openrouteservice.org</span><br>
+        → Account erstellen → Dashboard → API Keys → Create Key<br>
+        2.000 Anfragen/Tag kostenlos · HGV-Profil mit Höhe/Breite/Gewicht
+      </div>
+      <a href="https://openrouteservice.org/dev/#/login" target="_blank"
+        style="display:inline-block;margin-top:8px;font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:6px 12px;text-decoration:none;">
+        🔑 Zum ORS-Dashboard ↗
+      </a>
+        <button id="orsTestBtn" onclick="testOrsKey()"
+          style="display:inline-block;margin-top:8px;font-size:12px;color:var(--green);background:var(--green-soft);border:1px solid var(--green);border-radius:8px;padding:8px 14px;min-height:36px;">
+          ✅ Key testen
+        </button>
+        <div id="orsTestResult" style="font-size:12px;margin-top:8px;"></div>`:''}
+    </div>
+    <div class="settings-section">SUCHE</div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="settings-row">
+        <span class="sr-label">Suchradius Stellplätze</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="range" min="5" max="100" step="5" value="${vehicle.suchRadius||30}"
+            style="width:100px;accent-color:var(--accent);"
+            oninput="vehicle.suchRadius=parseInt(this.value);saveVehicle();document.getElementById('radiusVal').textContent=this.value+' km';">
+          <span id="radiusVal" style="font-size:13px;color:var(--accent);font-family:monospace;min-width:50px;">${vehicle.suchRadius||30} km</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);padding:4px 0 2px;">Gilt für 📍 Stellplatz-Suche pro Etappe · 5–100 km</div>
+    </div>
+    <div class="settings-section">API-KEY</div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="settings-row"><span class="sr-label">Anthropic API-Key</span><span class="sr-val">${masked}</span></div>
+      <div class="settings-row"><button class="sr-action" onclick="changeKey()">Key ändern</button></div>
+    </div>
+    <div class="settings-section">APP</div>
+    <div class="card">
+      <div class="settings-row"><span class="sr-label">Version</span><span class="sr-val">1.0.0 PWA</span></div>
+      <div class="settings-row"><span class="sr-label">Lokaler Server</span><span class="sr-val" style="color:${serverOnline?'var(--green)':'var(--muted)'};">${serverOnline?'✅ Verbunden':'⬜ Nicht aktiv'}</span></div>
+      <div class="settings-row"><span class="sr-label">Routing</span><span class="sr-val">OpenStreetMap</span></div>
+      <div class="settings-row"><span class="sr-label">Modus</span><span class="sr-val" style="color:var(--green);">${appMode==='free'?'🆓 Kostenlos (OSM)':'🤖 KI-Modus ('+aiProvider+')'}</span></div>
+      ${appMode==='ai'?`<div class="settings-row"><button class="sr-action" onclick="switchToFree()">Zu kostenlosem Modus wechseln</button></div>`:''}
+      ${appMode==='free'?`<div class="settings-row"><button class="sr-action" onclick="closeSettings();showOb('ob-keyinput');">KI-Modus aktivieren</button></div>`:''}
+      <div class="settings-row"><span class="sr-label">KI</span><span class="sr-val">${appMode==='free'?'OpenStreetMap':aiProvider}</span></div>
+    </div>
+    <button class="btn" style="color:var(--red);border:1px solid var(--red);border-radius:10px;padding:12px;width:100%;margin-top:16px;" onclick="confirmLogout()">API-Key entfernen &amp; abmelden</button>
+    <div style="margin-top:20px;text-align:center;font-size:11px;color:var(--muted);line-height:1.8;">
+      💡 <b>Als App installieren:</b> In Chrome → Menü (⋮) → „Zum Startbildschirm hinzufügen"<br>
+      Dann erscheint die App auf deinem Homescreen ohne Browser-Leiste.
+    </div>
+  `;
+  document.getElementById('settingsModal').classList.add('open');
+}
+
+function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
+
+function changeKey(){
+  closeSettings();
+  localStorage.removeItem(KEY_APIKEY);
+  apiKey='';
+  document.getElementById('app').style.display='none';
+  document.getElementById('app').classList.remove('active');
+  showOb('ob-keyinput');
+}
+
+function switchToFree(){
+  localStorage.setItem(KEY_MODE,'free');
+  appMode='free'; apiKey=''; aiProvider='';
+  localStorage.removeItem(KEY_APIKEY);
+  closeSettings(); renderAll();
+}
+
+function confirmLogout(){
+  document.getElementById('confirmTitle').textContent='Abmelden';
+  document.getElementById('confirmMsg').textContent='API-Key entfernen? Du kannst jederzeit einen neuen eingeben.';
+  document.getElementById('confirmOk').textContent='Entfernen';
+  document.getElementById('confirmOk').onclick=()=>{
+    localStorage.removeItem(KEY_APIKEY); apiKey='';
+    closeConfirm(); closeSettings();
+    document.getElementById('app').style.display='none';
+    document.getElementById('app').classList.remove('active');
+    showOb('ob-welcome');
+  };
+  document.getElementById('confirmModal').classList.add('open');
+}
+
+// Close modals on background tap
+document.getElementById('etappeModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEtappeModal();});
+document.getElementById('confirmModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeConfirm();});
+document.getElementById('settingsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSettings();});
+
+// ═══════════════════════════════════════════
+//  PWA SERVICE WORKER
+// ═══════════════════════════════════════════
+if('serviceWorker' in navigator){
+  const sw=`
+    const CACHE='womo-v1';
+    const FILES=['/'];
+    self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES))));
+    self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));
+  `;
+  const blob=new Blob([sw],{type:'application/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
